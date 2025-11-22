@@ -62,10 +62,12 @@
                 <td class="text-nowrap">
                     <a href="?r=admin/pages/edit&id=<?= $page['id']; ?>" class="btn btn-sm btn-secondary"><i class="bi bi-pencil"></i></a>
                     <form action="?r=admin/pages/delete" method="post" class="d-inline" onsubmit="return confirm('Hapus halaman ini?');">
+                        <input type="hidden" name="_csrf" value="<?php echo htmlspecialchars(Csrf::token()); ?>">
                         <input type="hidden" name="id" value="<?= $page['id']; ?>">
                         <button type="submit" class="btn btn-sm btn-danger"><i class="bi bi-trash3"></i></button>
                     </form>
                     <form action="?r=admin/pages/publish" method="post" class="d-inline">
+                        <input type="hidden" name="_csrf" value="<?php echo htmlspecialchars(Csrf::token()); ?>">
                         <input type="hidden" name="id" value="<?= $page['id']; ?>">
                         <?php
                             $status = $page['status'] ?? '';

@@ -5,7 +5,8 @@ Landing page & payment gateway builder written in plain PHP native. Includes adm
 ## Quick start
 
 1. Clone/copy this project into your web root (example: `D:/Laragon/www/landingpagebuilder`).
-2. Copy `.env.example` to `.env` and fill your Midtrans credentials:
+2. Copy `.env.example` to `.env` and fill your DB + Midtrans credentials:
+   - `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`, `DB_CHARSET`
    - `MIDTRANS_SERVER_KEY`
    - `MIDTRANS_CLIENT_KEY`
    - `MIDTRANS_MERCHANT_ID`
@@ -23,16 +24,6 @@ Landing page & payment gateway builder written in plain PHP native. Includes adm
 - `database/` – SQL schema dumps for initial setup.
 - `log/` – Application log output (`log_error.txt`).
 - `vendor/` – Composer dependencies.
-
-## Security review (initial checklist)
-
-- Secrets in repo: `.env` currently stores live Midtrans keys and merchant ID. Rotate the keys, keep only placeholders in `.env.example`, and ensure `.env` never leaves the server.
-- DB creds: `src/config/config.php` hardcodes `root` with an empty password. Move DB credentials to env vars, use a dedicated DB user with a strong password and least privilege.
-- Payment integrity: `api/payments/qris` accepts client-supplied `amount`/`product_name`, so anyone can undercharge/overcharge for any `page_id`. Lock these values to server-side product config and ensure the page is in gateway mode before charging.
-- TLS hardening: Midtrans client disables TLS verification when `cacert.pem` is missing. Fail closed instead of turning off `CURLOPT_SSL_VERIFYPEER/SSL_VERIFYHOST`.
-- Admin protections: No CSRF tokens on admin POSTs and no session hardening (`session_regenerate_id`, secure/HttpOnly/SameSite cookies, HTTPS). Add CSRF tokens and tighten session settings.
-- Auth resilience: Login lacks rate limiting/brute-force protection; consider basic throttling and logging of failed attempts.
-- Content safety: Published `html_content` renders unfiltered; if untrusted authors exist, add sanitization or a safer editing mode to prevent stored XSS.
 
 ## Notes
 

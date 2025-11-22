@@ -28,8 +28,6 @@ class PaymentController
 
         $input = json_decode(file_get_contents('php://input'), true) ?? [];
         $pageId = (int)($input['page_id'] ?? 0);
-        $overrideAmount = isset($input['amount']) ? (int)$input['amount'] : null;
-        $overrideName = isset($input['product_name']) ? trim((string)$input['product_name']) : null;
 
         if ($pageId <= 0) {
             Logger::error('Payment request rejected: missing page_id', ['input' => $input]);
@@ -46,9 +44,19 @@ class PaymentController
             return;
         }
 
+        if (($page['order_type'] ?? '') !== 'gateway') {
+            Logger::error('Payment request rejected: page not configured for gateway', ['page_id' => $pageId]);
+            http_response_code(400);
+            echo json_encode(['error' => 'Payment gateway not enabled for this page']);
+            return;
+        }
+
         $productConfig = json_decode($page['product_config'] ?? '', true) ?: [];
-        $grossAmount = $overrideAmount ?? (int)($productConfig['price'] ?? 0);
-        $productName = $overrideName !== null && $overrideName !== '' ? $overrideName : ($productConfig['name'] ?? ($page['title'] ?? 'Payment'));
+        $grossAmount = (int)($productConfig['price'] ?? 0);
+        $productName = trim((string)($productConfig['name'] ?? ''));
+        if ($productName === '') {
+            $productName = $page['title'] ?? 'Payment';
+        }
 
         if ($grossAmount <= 0) {
             Logger::error('Payment request rejected: missing product price', [
@@ -232,10 +240,9 @@ class PaymentController
         $caFile = 'D:/laragon/etc/ssl/cacert.pem';
         if (is_file($caFile)) {
             curl_setopt($ch, CURLOPT_CAINFO, $caFile);
-        } else {
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
         }
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
 
         $res = curl_exec($ch);
         if ($res === false) {

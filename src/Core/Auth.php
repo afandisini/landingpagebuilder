@@ -6,6 +6,17 @@ class Auth
     public static function startSession(): void
     {
         if (!self::$sessionStarted) {
+            $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+                || (isset($_SERVER['SERVER_PORT']) && (int)$_SERVER['SERVER_PORT'] === 443)
+                || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+            session_set_cookie_params([
+                'lifetime' => 0,
+                'path' => '/',
+                'domain' => '',
+                'secure' => $isHttps,
+                'httponly' => true,
+                'samesite' => 'Lax',
+            ]);
             session_start();
             self::$sessionStarted = true;
         }
@@ -14,6 +25,7 @@ class Auth
     public static function login(array $user): void
     {
         self::startSession();
+        session_regenerate_id(true);
         $_SESSION['user'] = [
             'id' => $user['id'],
             'name' => $user['name'] ?? $user['email'] ?? null,

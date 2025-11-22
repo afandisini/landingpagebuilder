@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../Core/Auth.php';
+require_once __DIR__ . '/../Core/Csrf.php';
 require_once __DIR__ . '/../Models/User.php';
 
 class AuthController
@@ -14,6 +15,11 @@ class AuthController
     {
         $email = trim($_POST['email'] ?? '');
         $password = $_POST['password'] ?? '';
+
+        if (!Csrf::validate($_POST['_csrf'] ?? null)) {
+            $this->loginForm('Invalid session token. Please try again.');
+            return;
+        }
 
         if ($email === '' || $password === '') {
             $this->loginForm('Email and password are required.');

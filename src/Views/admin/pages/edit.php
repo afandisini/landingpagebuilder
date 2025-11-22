@@ -21,6 +21,7 @@ $productNoteValue = $productConfig['note'] ?? '';
 </div>
 <form id="pageForm" method="post" action="?r=admin/pages/update">
     <input type="hidden" name="id" value="<?php echo htmlspecialchars($page['id']); ?>">
+    <input type="hidden" name="_csrf" value="<?php echo htmlspecialchars(Csrf::token()); ?>">
     <div class="row g-3 mb-3">
         <div class="col-md-6">
             <label class="form-label" for="title">Title</label>

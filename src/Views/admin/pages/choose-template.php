@@ -50,6 +50,7 @@
                         </span>
 
                         <form method="post" action="?r=admin/pages/template" class="mt-auto">
+                            <input type="hidden" name="_csrf" value="<?php echo htmlspecialchars(Csrf::token()); ?>">
                             <input type="hidden" name="template_id" 
                                 value="<?php echo htmlspecialchars($template['id']); ?>">
                             <button type="submit" class="btn btn-primary">

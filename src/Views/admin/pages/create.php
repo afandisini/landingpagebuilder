@@ -35,6 +35,7 @@ $productNoteValue = $old['product_note'] ?? '';
     <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
 <?php endif; ?>
 <form id="pageForm" method="post" action="?r=admin/pages/store">
+    <input type="hidden" name="_csrf" value="<?php echo htmlspecialchars(Csrf::token()); ?>">
     <input type="hidden" name="template_id" value="<?php echo htmlspecialchars($template['id']); ?>">
     <input type="hidden" name="order_type" value="<?php echo htmlspecialchars($orderType); ?>">
     <div class="row g-3 mb-3">

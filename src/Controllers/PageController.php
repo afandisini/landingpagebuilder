@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../Core/Auth.php';
+require_once __DIR__ . '/../Core/Csrf.php';
 require_once __DIR__ . '/../Models/Page.php';
 require_once __DIR__ . '/../Models/Template.php';
 
@@ -32,6 +33,10 @@ class PageController
     public function selectTemplate(): void
     {
         Auth::requireLogin();
+        if (!Csrf::validate($_POST['_csrf'] ?? null)) {
+            header('Location: ?r=admin/pages/template');
+            exit;
+        }
         $templateId = (int)($_POST['template_id'] ?? 0);
         if ($templateId <= 0 || !Template::find($templateId)) {
             header('Location: ?r=admin/pages/template');
@@ -73,6 +78,10 @@ class PageController
     public function store(): void
     {
         Auth::requireLogin();
+        if (!Csrf::validate($_POST['_csrf'] ?? null)) {
+            header('Location: ?r=admin/pages');
+            exit;
+        }
         $templateId = (int)($_POST['template_id'] ?? 0);
         $template = Template::find($templateId);
         if ($templateId <= 0 || !$template) {
@@ -194,6 +203,10 @@ class PageController
     public function update(): void
     {
         Auth::requireLogin();
+        if (!Csrf::validate($_POST['_csrf'] ?? null)) {
+            header('Location: ?r=admin/pages');
+            exit;
+        }
         $id = (int)($_POST['id'] ?? 0);
         $page = Page::find($id);
         if (!$page) {
@@ -277,6 +290,10 @@ class PageController
     public function delete(): void
     {
         Auth::requireLogin();
+        if (!Csrf::validate($_POST['_csrf'] ?? null)) {
+            header('Location: ?r=admin/pages');
+            exit;
+        }
         $id = (int)($_POST['id'] ?? 0);
         if ($id <= 0) {
             header('Location: ?r=admin/pages');
@@ -307,6 +324,10 @@ class PageController
     public function publish(): void
     {
         Auth::requireLogin();
+        if (!Csrf::validate($_POST['_csrf'] ?? null)) {
+            header('Location: ?r=admin/pages');
+            exit;
+        }
         $id = (int)($_POST['id'] ?? 0);
         $page = Page::find($id);
         if (!$page || empty($page['slug'])) {

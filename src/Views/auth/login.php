@@ -2,6 +2,7 @@
     <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
 <?php endif; ?>
 <form method="post" action="?r=login">
+    <input type="hidden" name="_csrf" value="<?php echo htmlspecialchars(Csrf::token()); ?>">
     <div class="mb-3">
         <label class="form-label" for="email">Email</label>
         <input type="email" name="email" id="email" class="form-control" required>
