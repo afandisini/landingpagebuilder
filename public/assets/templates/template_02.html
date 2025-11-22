@@ -1,0 +1,186 @@
+<!-- Template 02: Payment Gateway base layout -->
+<section class="py-5 bg-light">
+    <div class="container">
+        <div class="row g-4 align-items-center">
+            <div class="col-lg-6">
+                <h1 class="display-6 fw-bold">Judul Produk / Paket</h1>
+                <p class="lead text-secondary">Masukkan deskripsi singkat tentang produk atau layanan yang akan dibayar
+                    via gateway.</p>
+                <ul class="list-unstyled mb-4">
+                    <li class="d-flex mb-2"><span class="me-2 text-success">&#10003;</span><span>Highlight 1: manfaat
+                            utama.</span></li>
+                    <li class="d-flex mb-2"><span class="me-2 text-success">&#10003;</span><span>Highlight 2: bonus atau
+                            garansi.</span></li>
+                    <li class="d-flex mb-2"><span class="me-2 text-success">&#10003;</span><span>Highlight 3: testimoni
+                            atau hasil.</span></li>
+                </ul>
+                <div class="d-flex flex-wrap gap-2">
+                    <a class="btn btn-primary btn-lg" href="#pay-now">Bayar Sekarang</a>
+                    <a class="btn btn-outline-secondary btn-lg" href="#cta-whatsapp">Tanya Admin</a>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="border rounded-4 bg-white shadow-sm p-4">
+                    <div class="mb-3 text-center">
+                        <div
+                            class="ratio ratio-1x1 bg-light rounded-4 d-flex align-items-center justify-content-center">
+                            <span class="text-muted">Gambar Produk</span>
+                        </div>
+                    </div>
+                    <div class="text-center">
+                        <p class="h5 fw-bold mb-1">Rp 199.000</p>
+                        <p class="text-muted small mb-3">Isi harga produk di sini. Bisa tambahkan keterangan DP/termin.
+                        </p>
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-success btn-pay-gateway" type="button">Bayar via Gateway</button>
+                            <button class="btn btn-outline-secondary" type="button">Upload Bukti Transfer</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="py-4">
+    <div class="container">
+        <h2 class="h5 fw-bold mb-2">Hubungi & Social</h2>
+        <p class="text-secondary small mb-3">Link di bawah akan terisi otomatis dari form admin.</p>
+        <!--SOCIAL_LINKS-->
+    </div>
+</section>
+
+<!-- Payment Modal -->
+<div class="modal fade" id="payModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4">
+            <div class="modal-header">
+                <h5 class="modal-title">QR Pembayaran</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+            </div>
+            <div class="modal-body text-center">
+                <div id="qrWrap">
+                    <div class="spinner-border" role="status"></div>
+                    <div class="small mt-2 text-muted">Menyiapkan QR…</div>
+                </div>
+                <div id="payInfo" class="small text-muted mt-2"></div>
+                <div id="countdown" class="fw-semibold mt-1"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (() => {
+        const payBtn = document.querySelector('.btn-pay-gateway') || document.querySelector('button.btn.btn-success');
+        const modalEl = document.getElementById('payModal');
+        const qrWrap = document.getElementById('qrWrap');
+        const payInfo = document.getElementById('payInfo');
+        const countdownEl = document.getElementById('countdown');
+        let pollTimer = null;
+        let countdownTimer = null;
+
+        function getApiBase() {
+            const path = window.location.pathname;
+            const prefixSplit = path.split('/page/');
+            const basePath = prefixSplit[0] || '';
+            return window.location.origin + basePath;
+        }
+
+        function openModalLoading(text) {
+            qrWrap.innerHTML = '<div class="spinner-border" role="status"></div><div class="small mt-2 text-muted">' + (text || 'Menyiapkan QR…') + '</div>';
+            payInfo.textContent = '';
+            countdownEl.textContent = '';
+            new bootstrap.Modal(modalEl).show();
+        }
+
+        function startCountdown(expiry) {
+            clearInterval(countdownTimer);
+            if (!expiry) {
+                countdownEl.textContent = '';
+                return;
+            }
+            const expiryTime = new Date(expiry).getTime();
+            countdownTimer = setInterval(() => {
+                const diff = expiryTime - Date.now();
+                if (diff <= 0) {
+                    countdownEl.textContent = 'QR kedaluwarsa';
+                    clearInterval(countdownTimer);
+                    return;
+                }
+                const mins = Math.floor(diff / 60000);
+                const secs = Math.floor((diff % 60000) / 1000);
+                countdownEl.textContent = 'Berlaku: ' + mins + 'm ' + secs + 's';
+            }, 1000);
+        }
+
+        function pollStatus(orderId) {
+            clearInterval(pollTimer);
+            const apiBase = getApiBase();
+            pollTimer = setInterval(() => {
+                fetch(apiBase + '/api/payments/' + encodeURIComponent(orderId) + '/status')
+                    .then(r => r.json())
+                    .then(res => {
+                        if (res.status === 'settlement') {
+                            clearInterval(pollTimer);
+                            qrWrap.innerHTML = '<div class="text-success fw-semibold">Pembayaran berhasil.</div>';
+                            const modal = bootstrap.Modal.getInstance(modalEl);
+                            setTimeout(() => {
+                                if (modal) modal.hide();
+                                window.location.href = apiBase + '/thank-you?order_id=' + encodeURIComponent(orderId);
+                            }, 800);
+                        } else if (['expire', 'cancel', 'failure', 'deny'].includes(res.status)) {
+                            clearInterval(pollTimer);
+                            qrWrap.innerHTML = '<div class="text-danger">Pembayaran kedaluwarsa / gagal.</div>';
+                        }
+                    })
+                    .catch(() => { });
+            }, 5000);
+        }
+
+        function openPayment() {
+            const apiBase = getApiBase();
+            const pageId = document.body.dataset.pageId || window.currentPageId || window.pageId || null;
+            const amount = window.productPrice || null;
+            const productName = window.productName || null;
+
+            openModalLoading();
+
+            if (!pageId) {
+                qrWrap.innerHTML = '<div class="text-danger">Page ID tidak ditemukan.</div>';
+                return;
+            }
+
+            fetch(apiBase + '/api/payments/qris', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    page_id: Number(pageId),
+                    amount: amount ? Number(amount) : undefined,
+                    product_name: productName || undefined
+                })
+            })
+                .then(r => r.json())
+                .then(res => {
+                    if (!res.order_id || !res.qr_url) {
+                        qrWrap.innerHTML = '<div class="text-danger">Gagal membuat pembayaran.</div>';
+                        return;
+                    }
+                    qrWrap.innerHTML = '<img src="' + res.qr_url + '" alt="QR Pembayaran" class="img-fluid">';
+                    payInfo.textContent = productName ? ('Produk: ' + productName) : '';
+                    startCountdown(res.expiry_time);
+                    pollStatus(res.order_id);
+                })
+                .catch(() => {
+                    qrWrap.innerHTML = '<div class="text-danger">Gagal memproses permintaan.</div>';
+                });
+        }
+
+        if (payBtn) {
+            payBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                openPayment();
+            });
+        }
+    })();
+</script>

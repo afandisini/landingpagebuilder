@@ -1,0 +1,28 @@
+-- Payments table for Midtrans QRIS
+CREATE TABLE IF NOT EXISTS payments (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  page_id INT NOT NULL,
+  order_id VARCHAR(64) NOT NULL UNIQUE,
+  product_name VARCHAR(160) NULL,
+  gross_amount BIGINT UNSIGNED NOT NULL,
+  currency CHAR(3) NOT NULL DEFAULT 'IDR',
+  customer_name VARCHAR(120) NULL,
+  customer_phone VARCHAR(30) NULL,
+  customer_email VARCHAR(120) NULL,
+  payment_type ENUM('qris','manual_transfer','va','ewallet','card') NOT NULL DEFAULT 'qris',
+  provider VARCHAR(40) NULL,
+  midtrans_transaction_id VARCHAR(64) NULL,
+  midtrans_status VARCHAR(32) NULL,
+  qr_string TEXT NULL,
+  qr_url TEXT NULL,
+  expiry_time DATETIME NULL,
+  metadata JSON NULL,
+  status ENUM('pending','waiting','settlement','expire','cancel','failure','review') NOT NULL DEFAULT 'pending',
+  paid_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_page_id (page_id),
+  KEY idx_status (status),
+  KEY idx_payment_type (payment_type),
+  CONSTRAINT fk_payments_page FOREIGN KEY (page_id) REFERENCES pages(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

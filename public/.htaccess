@@ -1,0 +1,25 @@
+<IfModule mod_rewrite.c>
+RewriteEngine On
+
+# Skip existing files and directories.
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Route everything else to the front controller.
+RewriteRule ^ index.php [L]
+
+# aktifkan hanya untuk file font
+<IfModule mod_headers.c>
+  <FilesMatch "\.(woff2?|ttf|otf|eot)$">
+    Header set Access-Control-Allow-Origin "*"
+    Header set Access-Control-Allow-Methods "GET, OPTIONS"
+    Header set Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept"
+  </FilesMatch>
+</IfModule>
+
+# (opsional) pastikan MIME type benar
+AddType font/woff2 .woff2
+AddType application/font-woff .woff
+
+</IfModule>
