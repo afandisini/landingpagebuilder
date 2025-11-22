@@ -11,14 +11,21 @@ class PaymentController
 
     public function __construct()
     {
-        $this->serverKey = getenv('MIDTRANS_SERVER_KEY') ?: 'Mid-server-kdOomCE3z1IYXJD3C0H7IpoY';
-        $this->clientKey = getenv('MIDTRANS_CLIENT_KEY') ?: 'Mid-client-RLb2E0FYogowoTrk';
-        $this->merchantId = getenv('MIDTRANS_MERCHANT_ID') ?: 'G370059886';
+        $this->serverKey = trim((string)getenv('MIDTRANS_SERVER_KEY'));
+        $this->clientKey = trim((string)getenv('MIDTRANS_CLIENT_KEY'));
+        $this->merchantId = trim((string)getenv('MIDTRANS_MERCHANT_ID'));
     }
 
     public function createQrisPayment(): void
     {
         header('Content-Type: application/json');
+        if (!$this->hasValidCredentials()) {
+            Logger::error('Midtrans credentials missing');
+            http_response_code(500);
+            echo json_encode(['error' => 'Midtrans credentials are not configured.']);
+            return;
+        }
+
         $input = json_decode(file_get_contents('php://input'), true) ?? [];
         $pageId = (int)($input['page_id'] ?? 0);
         $overrideAmount = isset($input['amount']) ? (int)$input['amount'] : null;
@@ -158,6 +165,13 @@ class PaymentController
         $payload = json_decode($raw, true) ?? [];
         $orderId = $payload['order_id'] ?? '';
 
+        if (!$this->hasValidCredentials()) {
+            Logger::error('Midtrans webhook rejected: missing credentials', ['order_id' => $orderId]);
+            http_response_code(500);
+            echo json_encode(['error' => 'Midtrans credentials are not configured.']);
+            return;
+        }
+
         if ($orderId === '') {
             http_response_code(400);
             echo json_encode(['error' => 'Invalid payload']);
@@ -201,6 +215,10 @@ class PaymentController
 
     private function midtransCharge(array $payload): ?array
     {
+        if (!$this->hasValidCredentials()) {
+            return null;
+        }
+
         $ch = curl_init('https://api.sandbox.midtrans.com/v2/charge');
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
             'Content-Type: application/json',
@@ -267,5 +285,10 @@ class PaymentController
             default:
                 return 'pending';
         }
+    }
+
+    private function hasValidCredentials(): bool
+    {
+        return $this->serverKey !== '' && $this->clientKey !== '' && $this->merchantId !== '';
     }
 }
