@@ -1,4 +1,17 @@
 <?php
+date_default_timezone_set('Asia/Jakarta');
+
+function logErrorMessage($message)
+{
+    $logDir = dirname(__DIR__, 3) . '/log';
+    if (!is_dir($logDir)) {
+        mkdir($logDir, 0775, true);
+    }
+    $file = $logDir . '/log_error.txt';
+    $line = date('Y-m-d H:i:s') . ' [' . ($_SERVER['REQUEST_URI'] ?? 'cli') . '] ' . $message . PHP_EOL;
+    file_put_contents($file, $line, FILE_APPEND);
+}
+
 $orderType = $page['order_type'] ?? 'none';
 $orderTypeLabel = 'Informasi saja';
 $badgeClass = 'bg-secondary';
@@ -15,6 +28,7 @@ $ctaUrlValue = $page['cta_url'] ?? '';
 $productNameValue = $productConfig['name'] ?? '';
 $productPriceValue = $productConfig['price'] ?? '';
 $productNoteValue = $productConfig['note'] ?? '';
+$statusValue = $page['status'] ?? 'draft';
 ?>
 <div class="mb-4">
     <h1 class="h3">Edit Landing Page</h1>
@@ -27,9 +41,16 @@ $productNoteValue = $productConfig['note'] ?? '';
             <label class="form-label" for="title">Title</label>
             <input class="form-control" type="text" name="title" id="title" value="<?php echo htmlspecialchars($page['title']); ?>" required>
         </div>
-        <div class="col-md-6">
+        <div class="col-md-4">
             <label class="form-label" for="slug">Slug</label>
-            <input class="form-control" type="text" name="slug" id="slug" value="<?php echo htmlspecialchars($page['slug']); ?>" required>
+            <input class="form-control" type="text" name="slug" id="slug" value="<?php echo htmlspecialchars($page['slug']); ?>" placeholder="auto-fill from title if empty">
+        </div>
+        <div class="col-md-2">
+            <label class="form-label" for="status">Status</label>
+            <select class="form-select" name="status" id="status">
+                <option value="draft" <?php echo $statusValue === 'draft' ? 'selected' : ''; ?>>Draft</option>
+                <!-- <option value="published" <?php echo $statusValue === 'published' ? 'selected' : ''; ?>>Published</option> -->
+            </select>
         </div>
         <div class="col-md-6">
             <label class="form-label" for="template_id">Template</label>
@@ -54,7 +75,7 @@ $productNoteValue = $productConfig['note'] ?? '';
 
     <div class="mb-3">
         <label class="form-label">Design Canvas</label>
-        <div id="gjs" style="border: 1px solid #ddd; min-height: 70vh;">
+        <div id="gjs" class="card border rounded-3 p-2" style="overflow: hidden; min-height: 400px; background-color: #fff;">
             <?php echo $page['html_content'] ?? '<section><h1>Edit your layout</h1></section>'; ?>
         </div>
     </div>
@@ -159,13 +180,13 @@ $productNoteValue = $productConfig['note'] ?? '';
     const gatewayPanel = document.getElementById('order-gateway-panel');
 
     let editor = null;
-    if (typeof canvaseditor !== 'undefined') {
+    if (typeof canvaseditor !== 'undefined' && canvasEl) {
         editor = canvaseditor.init({
             container: '#gjs',
             height: '70vh',
             fromElement: true
         });
-    } else {
+    } else if (canvasEl) {
         canvasEl.setAttribute('contenteditable', 'true');
     }
 
@@ -177,11 +198,31 @@ $productNoteValue = $productConfig['note'] ?? '';
         });
     }
 
-    formEl.addEventListener('submit', function () {
-        if (editor) {
-            htmlField.value = editor.getHtml();
-        } else {
-            htmlField.value = canvasEl.innerHTML;
-        }
+    if (formEl) {
+        formEl.addEventListener('submit', function () {
+            let handled = false;
+            if (window.LPB && typeof window.LPB.serialize === 'function') {
+                const serialized = window.LPB.serialize();
+                if (htmlField && serialized) {
+                    htmlField.value = serialized;
+                    handled = true;
+                }
+            }
+            if (!handled) {
+                if (editor && htmlField) {
+                    htmlField.value = editor.getHtml();
+                } else if (canvasEl && htmlField) {
+                    htmlField.value = canvasEl.innerHTML;
+                }
+            }
+        });
+    }
+</script>
+<script>
+  (function(){
+    const form = document.getElementById('pageForm');
+    form?.addEventListener('submit', function(){
+      if (window.LPB?.serialize) window.LPB.serialize();
     });
+  })();
 </script>

@@ -1,4 +1,201 @@
 <?php
+// --- bootstrap minimal ---
+date_default_timezone_set('Asia/Jakarta');
+
+// TODO: adjust DSN/cred to your env
+$pdo = new PDO('mysql:host=127.0.0.1;dbname=landingpagebuilder;charset=utf8mb4', 'root', '', [
+    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+]);
+
+function slugify($text)
+{
+    $text = preg_replace('~[^\pL\d]+~u', '-', $text);
+    $text = iconv('UTF-8', 'ASCII//TRANSLIT', $text);
+    $text = preg_replace('~[^-\w]+~', '', $text);
+    $text = trim($text, '-');
+    $text = preg_replace('~-+~', '-', $text);
+    return strtolower($text ?: 'page');
+}
+
+function ensureUniqueSlug(PDO $pdo, $base, $excludeId = null)
+{
+    $slug = $base;
+    $i = 2;
+    while (true) {
+        $sql = 'SELECT id FROM pages WHERE slug = ?' . ($excludeId ? ' AND id != ?' : '');
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($excludeId ? [$slug, $excludeId] : [$slug]);
+        if (!$stmt->fetch()) {
+            return $slug;
+        }
+        $slug = $base . '-' . $i++;
+    }
+}
+
+function sanitizeHtml($html)
+{
+    $html = preg_replace('#<div class="lpb-toolbar">.*?</div>#si', '', $html);
+    $html = preg_replace('#<div class="lpb-handle">.*?</div>#si', '', $html);
+    $html = preg_replace('/\sdraggable="[^"]*"/i', '', $html);
+    $html = preg_replace("/\sdraggable='[^']*'/i", '', $html);
+    $html = preg_replace('/\scontenteditable="[^"]*"/i', '', $html);
+    $html = preg_replace("/\scontenteditable='[^']*'/i", '', $html);
+    $html = preg_replace('/\son[a-z]+\s*=\s*"[^"]*"/i', '', $html);
+    $html = preg_replace("/\son[a-z]+\s*=\s*'[^']*'/i", '', $html);
+    $html = preg_replace_callback('/class="([^"]*)"/i', function ($m) {
+        $classes = array_filter(array_map('trim', explode(' ', $m[1])), fn($c) => !preg_match('/^lpb-/', $c));
+        return count($classes) ? 'class="' . implode(' ', $classes) . '"' : '';
+    }, $html);
+
+    // Remove builder-only controls (add/remove buttons, modals)
+    $dom = new DOMDocument();
+    libxml_use_internal_errors(true);
+    $dom->loadHTML('<?xml encoding="utf-8" ?>' . $html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+    libxml_clear_errors();
+    $xpath = new DOMXPath($dom);
+    $queries = [
+        '//*[@data-layout-key]',
+        '//*[@data-action="remove-layout"]',
+        '//*[@data-action="confirm-remove-layout"]',
+        '//*[@data-builder-only]',
+        '//*[@id="TambahLayout"]',
+        '//*[@id="hapusLayoutCard"]',
+        '//*[@data-bs-target="#TambahLayout"]',
+        '//*[@data-bs-target="#hapusLayoutCard"]'
+    ];
+    foreach ($queries as $q) {
+        foreach ($xpath->query($q) as $node) {
+            if ($node->parentNode) {
+                $node->parentNode->removeChild($node);
+            }
+        }
+    }
+    return $dom->saveHTML();
+}
+
+function persistDataImages($html)
+{
+    $dom = new DOMDocument();
+    libxml_use_internal_errors(true);
+    $dom->loadHTML('<?xml encoding="utf-8" ?>' . $html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+    libxml_clear_errors();
+
+    $imgs = $dom->getElementsByTagName('img');
+    $baseDir = dirname(__DIR__, 4) . '/public/uploads/' . date('Y/m');
+    $baseUrl = '/uploads/' . date('Y/m');
+
+    if (!is_dir($baseDir)) {
+        mkdir($baseDir, 0775, true);
+    }
+
+    foreach ($imgs as $img) {
+        $src = $img->getAttribute('src');
+        if (strpos($src, 'data:image/') !== 0) {
+            continue;
+        }
+        if (!preg_match('#^data:(image/[\w.+-]+);base64,(.+)$#', $src, $m)) {
+            continue;
+        }
+        $mime = $m[1];
+        $data = base64_decode($m[2]);
+        if ($data === false) {
+            continue;
+        }
+        $ext = match ($mime) {
+            'image/png' => 'png',
+            'image/jpeg' => 'jpg',
+            'image/jpg' => 'jpg',
+            'image/webp' => 'webp',
+            'image/gif' => 'gif',
+            default => 'img'
+        };
+        $name = uniqid('img_', true) . '.' . $ext;
+        $path = $baseDir . '/' . $name;
+        file_put_contents($path, $data);
+        @chmod($path, 0644);
+        $img->setAttribute('src', $baseUrl . '/' . $name);
+        if (!$img->getAttribute('alt')) {
+            $img->setAttribute('alt', 'image');
+        }
+    }
+
+    return $dom->saveHTML();
+}
+
+function savePage(PDO $pdo, $input)
+{
+    $id = isset($input['id']) ? (int)$input['id'] : null;
+    $title = trim($input['title'] ?? '');
+    $slug = trim($input['slug'] ?? '');
+    $status = trim($input['status'] ?? 'draft');
+    $html = $input['html_content'] ?? '';
+
+    if (!$title) {
+        throw new RuntimeException('Title is required');
+    }
+
+    $allowedStatus = ['draft', 'published'];
+    if (!in_array($status, $allowedStatus, true)) {
+        $status = 'draft';
+    }
+
+    $existingId = null;
+    if ($id) {
+        $checkStmt = $pdo->prepare('SELECT id FROM pages WHERE id = ?');
+        $checkStmt->execute([$id]);
+        $existingId = $checkStmt->fetchColumn() ? $id : null;
+    }
+
+    $slugBase = $slug ?: slugify($title);
+    $slugFinal = ensureUniqueSlug($pdo, $slugBase, $existingId ?: null);
+
+    $now = date('Y-m-d H:i:s');
+
+    if ($existingId) {
+        $sql = "UPDATE pages SET title = ?, slug = ?, status = ?, html_content = ?, updated_at = ? WHERE id = ?";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$title, $slugFinal, $status, $html, $now, $existingId]);
+        return $existingId;
+    }
+
+    $sql = "INSERT INTO pages (user_id, title, slug, status, html_content, created_at, updated_at) VALUES (?,?,?,?,?,?,?)";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([(int)($input['user_id'] ?? 1), $title, $slugFinal, $status, $html, $now, $now]);
+    return (int)$pdo->lastInsertId();
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $wantsJson = isset($_SERVER['HTTP_ACCEPT']) && stripos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false;
+    $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+    $raw = $_POST['html_content'] ?? '';
+    $clean = sanitizeHtml($raw);
+    $withFiles = persistDataImages($clean);
+
+    $payload = $_POST;
+    $payload['html_content'] = $withFiles;
+
+    try {
+        $pageId = savePage($pdo, $payload);
+        if ($wantsJson || $isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode(['ok' => true, 'page_id' => $pageId]);
+        } else {
+            header('Location: ?r=admin/pages');
+        }
+        exit;
+    } catch (Throwable $e) {
+        logErrorMessage($e->getMessage());
+        if ($wantsJson || $isAjax) {
+            http_response_code(422);
+            header('Content-Type: application/json');
+            echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+            exit;
+        }
+        $error = $e->getMessage();
+    }
+}
+
 $orderType = $template['order_type'] ?? 'none';
 $orderTypeLabel = 'Informasi saja';
 $badgeClass = 'bg-secondary';
@@ -14,6 +211,7 @@ $ctaUrlValue = $old['cta_url'] ?? '';
 $productNameValue = $old['product_name'] ?? '';
 $productPriceValue = $old['product_price'] ?? '';
 $productNoteValue = $old['product_note'] ?? '';
+$statusValue = $old['status'] ?? 'draft';
 ?>
 <div class="mb-4">
     <h1 class="h3">Create Landing Page</h1>
@@ -34,18 +232,26 @@ $productNoteValue = $old['product_note'] ?? '';
 <?php if (!empty($error)): ?>
     <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
 <?php endif; ?>
-<form id="pageForm" method="post" action="?r=admin/pages/store">
+<form id="pageForm" method="POST" action="?r=admin/pages/store">
     <input type="hidden" name="_csrf" value="<?php echo htmlspecialchars(Csrf::token()); ?>">
     <input type="hidden" name="template_id" value="<?php echo htmlspecialchars($template['id']); ?>">
     <input type="hidden" name="order_type" value="<?php echo htmlspecialchars($orderType); ?>">
+    <input type="hidden" name="id" value="<?php echo htmlspecialchars($old['id'] ?? ''); ?>">
     <div class="row g-3 mb-3">
         <div class="col-md-6">
             <label class="form-label" for="title">Title</label>
             <input class="form-control" type="text" name="title" id="title" value="<?php echo htmlspecialchars($old['title'] ?? ''); ?>" required>
         </div>
-        <div class="col-md-6">
-            <label class="form-label" for="slug">Slug</label>
-            <input class="form-control" type="text" name="slug" id="slug" value="<?php echo htmlspecialchars($old['slug'] ?? ''); ?>" required>
+        <div class="col-md-4">
+            <label class="form-label" for="slug">Slug (optional)</label>
+            <input class="form-control" type="text" name="slug" id="slug" value="<?php echo htmlspecialchars($old['slug'] ?? ''); ?>" placeholder="auto-fill from title if empty">
+        </div>
+        <div class="col-md-2">
+            <label class="form-label" for="status">Status</label>
+            <select class="form-select" name="status" id="status">
+                <option value="draft" <?php echo $statusValue === 'draft' ? 'selected' : ''; ?>>Draft</option>
+                <!-- <option value="published" <?php echo $statusValue === 'published' ? 'selected' : ''; ?>>Published</option> -->
+            </select>
         </div>
     </div>
     <div class="mb-3">
@@ -161,20 +367,42 @@ $productNoteValue = $old['product_note'] ?? '';
     const htmlField = document.getElementById('html_content');
     const formEl = document.getElementById('pageForm');
     let editor = null;
-    if (typeof canvaseditor !== 'undefined') {
+
+    if (typeof canvaseditor !== 'undefined' && canvasEl) {
         editor = canvaseditor.init({
             container: '#gjs',
             height: '90vh',
             fromElement: true
         });
-    } else {
+    } else if (canvasEl) {
         canvasEl.setAttribute('contenteditable', 'true');
     }
-    formEl.addEventListener('submit', function () {
-        if (editor) {
-            htmlField.value = editor.getHtml();
-        } else {
-            htmlField.value = canvasEl.innerHTML;
-        }
+
+    if (formEl) {
+        formEl.addEventListener('submit', function () {
+            let handled = false;
+            if (window.LPB && typeof window.LPB.serialize === 'function') {
+                const serialized = window.LPB.serialize();
+                if (htmlField && serialized) {
+                    htmlField.value = serialized;
+                    handled = true;
+                }
+            }
+            if (!handled) {
+                if (editor && htmlField) {
+                    htmlField.value = editor.getHtml();
+                } else if (canvasEl && htmlField) {
+                    htmlField.value = canvasEl.innerHTML;
+                }
+            }
+        });
+    }
+</script>
+<script>
+  (function(){
+    const form = document.getElementById('pageForm');
+    form?.addEventListener('submit', function(){
+      if (window.LPB?.serialize) window.LPB.serialize();
     });
+  })();
 </script>
