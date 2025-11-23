@@ -50,9 +50,9 @@ $productNoteValue = $old['product_note'] ?? '';
     </div>
     <div class="mb-3">
         <label class="form-label">Design Canvas</label>
-         <div id="gjs" style="border: 1px solid #ddd; min-height: 70vh;">
+         <div id="gjs" class="card border rounded-3 p-2" style="overflow: hidden; min-height: 400px; background-color: #fff;">
             <?php if ($baseHtml !== ''): ?>
-                <?php echo $baseHtml; ?>
+            <?php echo $baseHtml; ?>
             <?php else: ?>
                 <section class="section">
                     <h1>Headline</h1>
@@ -111,50 +111,50 @@ $productNoteValue = $old['product_note'] ?? '';
     <div class="mb-3">
         <h5 class="h6 mb-2">Marketplace & Social Links</h5>
         <div class="row g-3">
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <label class="form-label" for="shopee_link">Shopee Link</label>
                 <input class="form-control" type="url" name="shopee_link" id="shopee_link" value="<?php echo htmlspecialchars($old['shopee_link'] ?? ''); ?>" placeholder="https://shopee.co.id/...">
             </div>
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <label class="form-label" for="tokped_link">Tokopedia Link</label>
                 <input class="form-control" type="url" name="tokped_link" id="tokped_link" value="<?php echo htmlspecialchars($old['tokped_link'] ?? ''); ?>" placeholder="https://tokopedia.com/...">
             </div>
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <label class="form-label" for="fb_link">Facebook Link</label>
                 <input class="form-control" type="url" name="fb_link" id="fb_link" value="<?php echo htmlspecialchars($old['fb_link'] ?? ''); ?>" placeholder="https://facebook.com/...">
             </div>
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <label class="form-label" for="ig_link">Instagram Link</label>
                 <input class="form-control" type="url" name="ig_link" id="ig_link" value="<?php echo htmlspecialchars($old['ig_link'] ?? ''); ?>" placeholder="https://instagram.com/...">
             </div>
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <label class="form-label" for="tiktok_link">TikTok Link</label>
                 <input class="form-control" type="url" name="tiktok_link" id="tiktok_link" value="<?php echo htmlspecialchars($old['tiktok_link'] ?? ''); ?>" placeholder="https://tiktok.com/...">
             </div>
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <label class="form-label" for="x_link">X Link</label>
                 <input class="form-control" type="url" name="x_link" id="x_link" value="<?php echo htmlspecialchars($old['x_link'] ?? ''); ?>" placeholder="https://x.com/...">
             </div>
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <label class="form-label" for="corporate">Corporate Link</label>
                 <input class="form-control" type="url" name="corporate" id="corporate" value="<?php echo htmlspecialchars($old['corporate'] ?? ''); ?>" placeholder="https://corporate.example.com/...">
             </div>
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <label class="form-label" for="publisher">Publisher Link</label>
                 <input class="form-control" type="url" name="publisher" id="publisher" value="<?php echo htmlspecialchars($old['publisher'] ?? ''); ?>" placeholder="https://publisher.example.com/...">
             </div>
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <label class="form-label" for="whatsapp">WhatsApp Link</label>
                 <input class="form-control" type="url" name="whatsapp" id="whatsapp" value="<?php echo htmlspecialchars($old['whatsapp'] ?? ''); ?>" placeholder="https://wa.me/1234567890">
             </div>
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <label class="form-label" for="telegram">Telegram Link</label>
                 <input class="form-control" type="url" name="telegram" id="telegram" value="<?php echo htmlspecialchars($old['telegram'] ?? ''); ?>" placeholder="https://t.me/username">
             </div>            
         </div>
     </div>
     <textarea name="html_content" id="html_content" hidden></textarea>
-    <button type="submit" class="btn btn-primary">Save Draft</button>
+    <button type="submit" class="btn btn-primary">Simpan Draft</button>
 </form>
 <script>
     const canvasEl = document.getElementById('gjs');
