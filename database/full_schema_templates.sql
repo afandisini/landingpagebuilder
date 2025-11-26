@@ -34,7 +34,7 @@ REPLACE INTO `templates` (`id`, `name`, `template_key`, `thumbnail`, `descriptio
 
 -- Membuang data untuk tabel landingpagebuilder.users: ~1 rows (lebih kurang)
 REPLACE INTO `users` (`id`, `name`, `email`, `password`, `role`, `created_at`, `updated_at`) VALUES
-	(1, 'Admin', 'admin@admin.com', '$2y$12$2slE9sJTMP4eyBOePQgQPuCP5GCzI4VWIT8EeBOzgLyCzlItSSKBa', 'admin', '2025-11-21 12:09:18', '2025-11-21 12:14:40');
+	(1, 'Admin', 'admin@admin.com', '$2y$12$Kpmc25QzYtQJgbv45qXITepuB3dFmkqP08tN4iMLoAH88eOkrh52.', 'admin', '2025-11-21 12:09:18', '2025-11-21 12:14:40');
 
 /*!40103 SET TIME_ZONE=IFNULL(@OLD_TIME_ZONE, 'system') */;
 /*!40101 SET SQL_MODE=IFNULL(@OLD_SQL_MODE, '') */;

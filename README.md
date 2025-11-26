@@ -37,6 +37,10 @@ Landing page & payment gateway builder written in plain PHP native. Includes adm
 
 - `.env` is ignored by git to avoid leaking secrets. Keep your real keys only in `.env`.
 - Admin UI lives under `?r=login` or `/admin/dashboard` after authentication.
+- Default admin user (from `database/full_schema_templates.sql`):
+  - Email: `admin@admin.com`
+  - Password: `admin`
+  - Change the password after first login!
 - Publish a page from the admin list to generate a static file under `public/page/{slug}.html`.
 
 ## Documentation
