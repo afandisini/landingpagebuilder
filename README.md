@@ -45,7 +45,7 @@ Landing page & payment gateway builder written in plain PHP native. Includes adm
 
 ## Support / Donate
 
-- [Buy us coffee, cigarettes, and snacks on Saweria](https://saweria.co/aitisolutions)
+- [Buy us coffee, cigarettes, and snacks on Saweria](https://saweria.co/aitisolutions)  🤟😎
 
 ## License
 
