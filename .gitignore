@@ -1,4 +1,5 @@
 .env
 /log/*
-!log/.gitkeep
+!/log/.gitkeep
+/public/page/*
 /vendor/
