@@ -14,15 +14,23 @@ Landing page & payment gateway builder written in plain PHP native. Includes adm
 4. Set the base URL in `src/config/config.php` to match your host (default: `http://localhost/landingpagebuilder/public`).
 5. Serve the `public/` directory via your web server (Laragon/Apache/Nginx).
 
+## Architecture highlights
+
+- **Kernel-driven boot**: front controller loads env/logger, captures `Request`, runs the `Kernel`, and sends a `Response`.
+- **Router**: supports `{param}` paths plus legacy `?r=` routing, mapped to controllers.
+- **Middleware & container**: lightweight pipeline plus a PSR-11-friendly container for auto-resolving dependencies.
+- **Request/Response wrappers**: helpers for JSON/redirects and structured request access.
+- **Central error handling**: logs via `Logger`, returns JSON for APIs.
+
 ## Folder structure (high level)
 
 - `public/` – front controller (`index.php`), tracking pixel (`tracker.php`), static assets, and published pages under `public/page/{slug}.html`.
-- `src/Core/` – Env loader, router, logger, DB connection, auth/session helper, misc helper.
-- `src/Controllers/` – Request handlers for auth, dashboard, pages, and payments.
-- `src/Models/` – Database access for users, pages, templates, visits.
+- `src/Core/` – env loader, kernel, router, container, middleware, logger, DB helper, auth/session helper, misc helper.
+- `src/Controllers/` – request handlers for auth, dashboard, pages, and payments.
+- `src/Models/` – database access for users, pages, templates, visits.
 - `src/Views/` – Blade-less PHP views (layouts, admin, auth).
 - `database/` – SQL schema dumps for initial setup.
-- `log/` – Application log output (`log_error.txt`).
+- `log/` – application log output (`log_error.txt`).
 - `vendor/` – Composer dependencies.
 
 ## Notes
@@ -33,7 +41,11 @@ Landing page & payment gateway builder written in plain PHP native. Includes adm
 
 ## Documentation
 
-Detailed documentation is available in `doc/` (see `doc/application-guide.md`).
+- See `doc/application-guide.md` for the updated English guide (architecture, setup, CLI, payments).
+
+## Support / Donate
+
+- [Buy us coffee, cigarettes, and snacks on Saweria](https://saweria.co/aitisolutions)
 
 ## License
 

@@ -1,80 +1,83 @@
-# Landing Page Builder – Documentation
+# Landing Page Builder – Application Guide
 
-## Ringkasan
+Concise, English-first guide for running, maintaining, and understanding the mini framework that powers this landing page builder.
 
-Aplikasi PHP Native (tanpa framework) untuk membuat landing page, mem-publish HTML statis, dan opsi pembayaran QRIS via Midtrans. Admin mengelola halaman dari panel, memilih template, dan men-generate file statis di `public/page`.
+## What’s new
 
-## Kebutuhan sistem
+- **Final kernel** coordinates boot: load `.env`, logger, container, router, then emits a `Response`.
+- **Final router** supports dynamic patterns (`/api/payments/{orderId}/status`) and still honors legacy `?r=` query routes.
+- **Request/Response wrappers** give structured access to method/route/headers/JSON body plus helpers for JSON/redirect responses.
+- **Middleware pipeline** keeps global/route middleware simple before the handler runs.
+- **Final container** (PSR-11 friendly) for singletons and auto-resolved classes, used by the kernel and router.
+- **Centralized error handler** logs via `Logger`, returns JSON for API, and short text for web.
+- **CLI `php aitictl`**: list routes, check DB health, or peek at the loaded environment.
 
-- PHP 8.1+ (cURL, PDO MySQL)
-- MySQL/MariaDB
-- Web server yang mengarahkan root ke `public/`
-- Laragon/WAMP/Nginx apa pun
+## Quick setup
 
-## Struktur penting
-
-- `public/` – front controller (`index.php`), assets, file publik, dan hasil publish di `public/page`.
-- `src/Controllers/` – controller admin & payment.
-- `src/Core/` – router, auth, logger, env loader, database helper.
-- `src/Views/` – view admin (PHP).
-- `database/` – skema & seed contoh.
-- `documentations/` – dokumen ini dan bahan referensi lain.
-
-## Setup awal
-
-1. Clone/copy project ke web root (misal `D:/Laragon/www/landingpagebuilder`).
+1. Clone/copy the project to your web root (example `D:/Laragon/www/landingpagebuilder`).
 2. Import database:
-   - Gunakan `database/full_schema_templates.sql` (berisi contoh data template & page), atau
-   - Gunakan `database/payments.sql` bila hanya butuh tabel pembayaran.
-3. Salin `.env.example` menjadi `.env`, lalu isi kredensial Midtrans (sandbox/production):
+   - `database/full_schema_templates.sql` (complete with sample templates/pages), or
+   - `database/payments.sql` if you only need payment tables.
+3. Copy `.env.example` → `.env`, then fill credentials:
    ```
+   DB_HOST=127.0.0.1
+   DB_NAME=landingpagebuilder
+   DB_USER=root
+   DB_PASS=your-db-pass
+   DB_CHARSET=utf8mb4
    MIDTRANS_SERVER_KEY=your-server-key
    MIDTRANS_CLIENT_KEY=your-client-key
    MIDTRANS_MERCHANT_ID=your-merchant-id
    ```
-   File `.env` otomatis diload di `public/index.php`. **Jangan commit `.env`** (sudah di-ignore).
-4. Sesuaikan `src/config/config.php` jika base URL atau kredensial database berbeda.
-5. Arahkan virtual host/root web server ke folder `public/`.
+   `Env::load()` runs in `public/index.php`, so `.env` values are immediately available.
+4. Set `base_url` in `src/config/config.php` to match your public host.
+5. Point your virtual host/web server to the `public/` directory.
 
-## Kredensial Midtrans
+## Core architecture
 
-- Wajib diisi di `.env`; jika kosong, endpoint payment/webhook akan membalas error.
-- Endpoint charge memakai sandbox URL (`https://api.sandbox.midtrans.com/v2/charge`); ganti ke production bila diperlukan.
-- Signature webhook divalidasi menggunakan `MIDTRANS_SERVER_KEY`.
+- `public/index.php` – front controller: load env/logger, start session, capture `Request`, run `Kernel`, send `Response`.
+- `src/Core/Kernel.php` – registers routes to controllers, prepares the container + global middleware, and returns formatted responses.
+- `src/Core/Router.php` – method-based matching; supports `{param}` placeholders and `?r=` fallback when present.
+- `src/Core/Request.php` & `src/Core/Response.php` – lightweight HTTP wrappers (headers/query/body access, JSON/redirect helpers).
+- `src/Core/MiddlewarePipeline.php` – chained middleware execution `fn(Request $r, $next)`.
+- `src/Core/Container.php` – simple service locator/DI; auto-instantiates classes if not manually bound.
+- `src/Core/ErrorHandler.php` – registers error/exception handlers; JSON for API, plain text for web/CLI.
+- `src/Controllers/*` – business handlers (auth, dashboard, page builder, payments).
+- `src/Views/*` – PHP views without a templating engine.
+- `public/page/*` – published static outputs.
+- `database/*` – SQL schema and seed data.
 
-## Alur penggunaan admin
+## Admin flow (short)
 
-1. Login (`/public/?r=login`). (Gunakan user pada tabel `users`; sesuaikan password di DB).
-2. Buat halaman:
-   - Pilih template → isi judul, slug, konten (CanvasEditor), CTA/produk (untuk order_type `link`/`gateway`), serta link sosial/marketplace.
-   - Link sosial/marketplace boleh kosong; jika semua kosong, section `<!--SOCIAL_LINKS-->` tidak ditampilkan saat publish.
-3. Publish halaman:
-   - Dari daftar halaman pilih “publish” → file statis dibuat di `public/page/{slug}.html`.
-   - CTA/link yang tersimpan ikut dipayload ke JS global `window.landingPageLinks`.
-4. Dashboard menampilkan daftar halaman beserta URL publish.
+1. Log in (`/public/?r=login`).
+2. Create a page: choose a template → fill title/slug/content → add CTA/product (for `order_type` `link`/`gateway`) + social/marketplace links.
+3. Publish: choose “publish” from the page list → static file generated at `public/page/{slug}.html` plus link payload in `window.landingPageLinks`.
+4. Dashboard shows page list and published URLs.
 
-## Alur pembayaran (QRIS Midtrans)
+## Payment flow (QRIS Midtrans)
 
-- Endpoint `POST /api/payments/qris` (route `api/payments/qris`) menerima `page_id` dan optional `amount`/`product_name`.
-- Order dicatat di tabel `payments`, lalu charge Midtrans dilakukan via server key.
-- Response berisi `order_id`, `qr_url`, `expiry_time`.
-- Polling status: `GET /api/payments/{order_id}/status`.
-- Webhook: `POST /webhook/midtrans` memverifikasi signature (`order_id + status_code + gross_amount + serverKey`).
-- Status mapping: `settlement|capture` → settlement, `pending`, `expire`, `cancel`, `deny|failure` → failure.
+- `POST /api/payments/qris` → accepts `page_id`, optional amount/product name; stores in `payments`, then charges Midtrans.
+- `GET /api/payments/{orderId}/status` or `GET /api/payments/status?order_id=` for status polling.
+- `POST /webhook/midtrans` verifies signature (`order_id + status_code + gross_amount + serverKey`) before updating status.
+- Status mapping: `settlement|capture` → settlement; `pending`; `expire`; `cancel`; `deny|failure` → failure.
 
-## Logging & error
+## Logging & error handling
 
-- Log disimpan di folder `log/` (misal `log_error.txt`). Folder ini di-ignore; simpan log sensitif di luar git.
-- Jika kredensial Midtrans hilang, server memberi HTTP 500 dengan pesan konfigurasi belum diset.
+- JSON logs live in `log/log_error.txt` (auto-created). The directory is git-ignored.
+- Errors/exceptions are recorded via `Logger`; `ErrorHandler` renders JSON for `Accept: application/json`/XHR callers.
 
-## Keamanan & praktik
+## CLI: `php aitictl`
 
-- Jangan commit `.env` atau file log (sudah di `.gitignore`).
-- Isi slug hanya huruf kecil/angka/tanda hubung (validasi di controller).
-- Saat deploy production, pastikan HTTPS aktif dan `base_url` sesuai domain publik.
+- `php aitictl routes` – list method/path → handler.
+- `php aitictl health` – check database connection (`SELECT 1`).
+- `php aitictl env` – show env snapshot (base URL, DB host/name/user, merchant ID).
 
-## Maintenance cepat
+## Support / Donate
 
-- Tambah template: letakkan file HTML di `public/assets/templates/`, daftarkan metadata di tabel `templates`.
-- Hapus halaman: gunakan aksi delete di admin; file statis terhapus jika berada di dalam `public/`.
-- Uji webhook: gunakan `ngrok` atau tunnel lain lalu set URL `https://<tunnel>/webhook/midtrans` di dashboard Midtrans.
+- [Buy us coffee, cigarettes, and snacks on Saweria](https://saweria.co/aitisolutions)
+
+## Fast maintenance
+
+- Add template: drop HTML into `public/assets/templates/`, register metadata in the `templates` table.
+- Delete page: use delete action in admin; static file is removed if inside `public/`.
+- Test webhook: use `ngrok`/tunnel and point Midtrans to `https://<tunnel>/webhook/midtrans`.

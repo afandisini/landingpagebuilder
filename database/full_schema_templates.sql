@@ -22,28 +22,7 @@ REPLACE INTO `pages` (`id`, `user_id`, `title`, `slug`, `status`, `html_content`
 
 -- Membuang data untuk tabel landingpagebuilder.page_visits: ~12 rows (lebih kurang)
 REPLACE INTO `page_visits` (`id`, `page_id`, `ip_address`, `user_agent`, `referrer`, `session_id`, `user_hash`, `created_at`) VALUES
-	(18, 3, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', 'http://localhost/landingpagebuilder/public/page/demo-3.html', '9f9911cfaca275590e88dd3d946a7093', '945d5dcae9594a26f36389c6f72f9c31f678e0c5', '2025-11-22 06:09:51'),
-	(19, 3, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', 'http://localhost/landingpagebuilder/public/page/demo-3.html', '9f9911cfaca275590e88dd3d946a7093', '945d5dcae9594a26f36389c6f72f9c31f678e0c5', '2025-11-22 06:10:24'),
-	(21, 3, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', 'http://localhost/landingpagebuilder/public/page/demo-3.html', '9f9911cfaca275590e88dd3d946a7093', '945d5dcae9594a26f36389c6f72f9c31f678e0c5', '2025-11-22 06:14:06'),
-	(22, 4, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', 'http://localhost/landingpagebuilder/public/page/demo-2.html', '9f9911cfaca275590e88dd3d946a7093', '945d5dcae9594a26f36389c6f72f9c31f678e0c5', '2025-11-22 07:12:47'),
-	(23, 4, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', 'http://localhost/landingpagebuilder/public/page/demo-2.html', '9f9911cfaca275590e88dd3d946a7093', '945d5dcae9594a26f36389c6f72f9c31f678e0c5', '2025-11-22 07:41:54'),
-	(24, 4, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', 'http://localhost/landingpagebuilder/public/page/demo-2.html', '9f9911cfaca275590e88dd3d946a7093', '945d5dcae9594a26f36389c6f72f9c31f678e0c5', '2025-11-22 07:53:33'),
-	(27, 7, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', 'http://localhost/landingpagebuilder/public/page/bemo-4.html', '9f9911cfaca275590e88dd3d946a7093', '945d5dcae9594a26f36389c6f72f9c31f678e0c5', '2025-11-22 08:40:33'),
-	(28, 7, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', 'http://localhost/landingpagebuilder/public/page/bemo-4.html', '9f9911cfaca275590e88dd3d946a7093', '945d5dcae9594a26f36389c6f72f9c31f678e0c5', '2025-11-22 08:41:06'),
-	(29, 7, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', 'http://localhost/landingpagebuilder/public/page/bemo-4.html', '9f9911cfaca275590e88dd3d946a7093', '945d5dcae9594a26f36389c6f72f9c31f678e0c5', '2025-11-22 08:42:13'),
-	(30, 7, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', 'http://localhost/landingpagebuilder/public/page/bemo-4.html', '9f9911cfaca275590e88dd3d946a7093', '945d5dcae9594a26f36389c6f72f9c31f678e0c5', '2025-11-22 08:42:50'),
-	(31, 7, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', 'http://localhost/landingpagebuilder/public/page/bemo-4.html', '9f9911cfaca275590e88dd3d946a7093', '945d5dcae9594a26f36389c6f72f9c31f678e0c5', '2025-11-22 08:46:42'),
-	(32, 7, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', 'http://localhost/landingpagebuilder/public/page/bemo-4.html', '9f9911cfaca275590e88dd3d946a7093', '945d5dcae9594a26f36389c6f72f9c31f678e0c5', '2025-11-22 08:48:35'),
-	(33, 7, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', 'http://localhost/landingpagebuilder/public/page/bemo-4.html', '9f9911cfaca275590e88dd3d946a7093', '945d5dcae9594a26f36389c6f72f9c31f678e0c5', '2025-11-22 08:55:44'),
-	(34, 7, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', 'http://localhost/landingpagebuilder/public/page/bemo-4.html', '9f9911cfaca275590e88dd3d946a7093', '945d5dcae9594a26f36389c6f72f9c31f678e0c5', '2025-11-22 08:55:57'),
-	(35, 7, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', 'http://localhost/landingpagebuilder/public/page/bemo-4.html', '9f9911cfaca275590e88dd3d946a7093', '945d5dcae9594a26f36389c6f72f9c31f678e0c5', '2025-11-22 08:58:27'),
-	(36, 7, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', 'http://localhost/landingpagebuilder/public/page/bemo-4.html', '9f9911cfaca275590e88dd3d946a7093', '945d5dcae9594a26f36389c6f72f9c31f678e0c5', '2025-11-22 08:59:07'),
-	(37, 7, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', 'http://localhost/landingpagebuilder/public/page/bemo-4.html', '9f9911cfaca275590e88dd3d946a7093', '945d5dcae9594a26f36389c6f72f9c31f678e0c5', '2025-11-22 08:59:09'),
-	(38, 7, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', 'http://localhost/landingpagebuilder/public/page/bemo-4.html', '9f9911cfaca275590e88dd3d946a7093', '945d5dcae9594a26f36389c6f72f9c31f678e0c5', '2025-11-22 08:59:11'),
-	(39, 7, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', 'http://localhost/landingpagebuilder/public/page/bemo-4.html', '9f9911cfaca275590e88dd3d946a7093', '945d5dcae9594a26f36389c6f72f9c31f678e0c5', '2025-11-22 08:59:40'),
-	(40, 4, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', 'http://localhost/landingpagebuilder/public/page/demo-2.html', '9f9911cfaca275590e88dd3d946a7093', '945d5dcae9594a26f36389c6f72f9c31f678e0c5', '2025-11-22 09:00:10'),
-	(41, 7, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', 'http://localhost/landingpagebuilder/public/page/bemo-4.html', '9f9911cfaca275590e88dd3d946a7093', '945d5dcae9594a26f36389c6f72f9c31f678e0c5', '2025-11-22 09:03:46'),
-	(42, 7, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', 'http://localhost/landingpagebuilder/public/page/bemo-4.html', '9f9911cfaca275590e88dd3d946a7093', '945d5dcae9594a26f36389c6f72f9c31f678e0c5', '2025-11-22 09:03:50');
+	(1, 3, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', 'http://localhost/landingpagebuilder/public/page/demo-3.html', '9f9911cfaca275590e88dd3d946a7093', '945d5dcae9594a26f36389c6f72f9c31f678e0c5', '2025-11-22 06:09:51');
 
 -- Membuang data untuk tabel landingpagebuilder.payments: ~0 rows (lebih kurang)
 
@@ -51,12 +30,11 @@ REPLACE INTO `page_visits` (`id`, `page_id`, `ip_address`, `user_agent`, `referr
 
 -- Membuang data untuk tabel landingpagebuilder.templates: ~2 rows (lebih kurang)
 REPLACE INTO `templates` (`id`, `name`, `template_key`, `thumbnail`, `description`, `order_type`, `base_file`, `created_at`, `updated_at`) VALUES
-	(1, 'Landing Pages', 'template_01', 'assets/templates/template_2.png', 'Direct Link Button whatsapp', 'link', 'assets/templates/template_01.html', '2025-11-21 14:46:30', '2025-11-21 14:46:56'),
-	(2, 'Payment Gateway', 'template_02', 'assets/templates/template_1.png', 'Layout dengan QR/payment placeholder', 'gateway', 'assets/templates/template_02.html', '2025-11-22 14:46:30', '2025-11-22 14:46:30');
+	(1, 'Landing Pages', 'template_01', 'assets/templates/template_2.png', 'Direct Link Button whatsapp', 'link', 'assets/templates/template_01.html', '2025-11-21 14:46:30', '2025-11-21 14:46:56');
 
 -- Membuang data untuk tabel landingpagebuilder.users: ~1 rows (lebih kurang)
 REPLACE INTO `users` (`id`, `name`, `email`, `password`, `role`, `created_at`, `updated_at`) VALUES
-	(1, 'Admin', 'admin@aiti-solutions.com', '$2y$12$2slE9sJTMP4eyBOePQgQPuCP5GCzI4VWIT8EeBOzgLyCzlItSSKBa', 'admin', '2025-11-21 12:09:18', '2025-11-21 12:14:40');
+	(1, 'Admin', 'admin@admin.com', '$2y$12$2slE9sJTMP4eyBOePQgQPuCP5GCzI4VWIT8EeBOzgLyCzlItSSKBa', 'admin', '2025-11-21 12:09:18', '2025-11-21 12:14:40');
 
 /*!40103 SET TIME_ZONE=IFNULL(@OLD_TIME_ZONE, 'system') */;
 /*!40101 SET SQL_MODE=IFNULL(@OLD_SQL_MODE, '') */;

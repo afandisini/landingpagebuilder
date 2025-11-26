@@ -1,110 +1,121 @@
 <?php
-require_once __DIR__ . '/../Controllers/AuthController.php';
-require_once __DIR__ . '/../Controllers/DashboardController.php';
-require_once __DIR__ . '/../Controllers/PageController.php';
-require_once __DIR__ . '/../Controllers/PaymentController.php';
 
-class Router
+final class Router
 {
-    public function dispatch(): void
+    private array $routes = [];
+    private array $globalMiddleware = [];
+
+    public function add(string $method, string $pattern, callable|array|string $handler, array $middleware = []): void
     {
-        Auth::startSession();
-        $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
-        $route = $_GET['r'] ?? null;
+        $method = strtoupper($method);
+        $pattern = trim($pattern, '/');
+        $regex = '#^' . preg_replace('#\{([^/]+)\}#', '(?P<$1>[^/]+)', $pattern) . '$#';
+        $this->routes[$method][] = [
+            'pattern' => $pattern,
+            'regex' => $regex,
+            'handler' => $handler,
+            'middleware' => $middleware,
+        ];
+    }
 
-        // Support friendly paths when ?r is not provided (e.g. /api/... endpoints).
-        if ($route === null) {
-            $path = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?? '';
-            $path = trim($path, '/');
-            $base = trim(dirname($_SERVER['SCRIPT_NAME'] ?? ''), '/');
-            if ($base !== '' && strpos($path, $base) === 0) {
-                $path = ltrim(substr($path, strlen($base)), '/');
-            }
-            if ($path === '') {
-                $route = Auth::check() ? 'admin/dashboard' : 'login';
-            } elseif ($path === 'api/payments/qris') {
-                $route = 'api/payments/qris';
-            } elseif (preg_match('#^api/payments/([^/]+)/status$#', $path, $matches)) {
-                $_GET['order_id'] = $matches[1];
-                $route = 'api/payments/status';
-            } elseif ($path === 'webhook/midtrans') {
-                $route = 'webhook/midtrans';
-            } else {
-                $route = $path;
+    public function middleware(callable $middleware): void
+    {
+        $this->globalMiddleware[] = $middleware;
+    }
+
+    public function all(): array
+    {
+        return $this->routes;
+    }
+
+    public function dispatch(Request $request, Container $container, array $prependMiddleware = []): Response
+    {
+        $match = $this->match($request->method(), $request->route());
+        if ($match === null) {
+            return Response::redirect('?r=login');
+        }
+
+        ob_start();
+        try {
+            $middlewareStack = array_merge($prependMiddleware, $this->globalMiddleware, $match['middleware']);
+            $pipeline = new MiddlewarePipeline($middlewareStack);
+            $handler = function (Request $req) use ($match, $container) {
+                $callable = $this->resolveHandler($match['handler'], $container);
+                $result = $container->call($callable, $match['params']);
+                return $this->normalizeResponse($result);
+            };
+
+            $response = $pipeline->process($request, $handler);
+        } finally {
+            $content = ob_get_clean();
+            if (isset($response) && $content !== '') {
+                $response->append($content);
             }
         }
 
-        switch ($route) {
-            case 'login':
-                $controller = new AuthController();
-                if ($method === 'POST') {
-                    $controller->login();
-                } else {
-                    $controller->loginForm();
-                }
-                break;
-            case 'logout':
-                (new AuthController())->logout();
-                break;
-            case 'admin/dashboard':
-                (new DashboardController())->index();
-                break;
-            case 'admin/pages':
-                (new PageController())->index();
-                break;
-            case 'admin/pages/template':
-                $pageController = new PageController();
-                if ($method === 'POST') {
-                    $pageController->selectTemplate();
-                } else {
-                    $pageController->chooseTemplate();
-                }
-                break;
-            case 'admin/pages/create':
-                (new PageController())->create();
-                break;
-            case 'admin/pages/store':
-                if ($method === 'POST') {
-                    (new PageController())->store();
-                }
-                break;
-            case 'admin/pages/edit':
-                (new PageController())->edit();
-                break;
-            case 'admin/pages/update':
-                if ($method === 'POST') {
-                    (new PageController())->update();
-                }
-                break;
-            case 'admin/pages/delete':
-                if ($method === 'POST') {
-                    (new PageController())->delete();
-                }
-                break;
-            case 'admin/pages/publish':
-                if ($method === 'POST') {
-                    (new PageController())->publish();
-                }
-                break;
-            case 'api/payments/qris':
-                if ($method === 'POST') {
-                    (new PaymentController())->createQrisPayment();
-                }
-                break;
-            case 'api/payments/status':
-                if ($method === 'GET') {
-                    $orderId = $_GET['order_id'] ?? '';
-                    (new PaymentController())->getStatus($orderId);
-                }
-                break;
-            case 'webhook/midtrans':
-                if ($method === 'POST') {
-                    (new PaymentController())->handleWebhook();
-                }
-                break;
-            default:
-                header('Location: ?r=login');
-                exit;
+        return $response ?? Response::make();
+    }
+
+    private function match(string $method, string $route): ?array
+    {
+        $method = strtoupper($method);
+        $route = trim($route, '/');
+        if (!isset($this->routes[$method])) {
+            return null;
         }
+
+        foreach ($this->routes[$method] as $definition) {
+            if ($definition['pattern'] === $route) {
+                return [
+                    'handler' => $definition['handler'],
+                    'params' => [],
+                    'middleware' => $definition['middleware'],
+                ];
+            }
+            if (preg_match($definition['regex'], $route, $matches)) {
+                $params = [];
+                foreach ($matches as $key => $value) {
+                    if (!is_int($key)) {
+                        $params[$key] = $value;
+                    }
+                }
+                return [
+                    'handler' => $definition['handler'],
+                    'params' => $params,
+                    'middleware' => $definition['middleware'],
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    private function resolveHandler(callable|array|string $handler, Container $container): callable
+    {
+        if (is_string($handler) && str_contains($handler, '@')) {
+            [$class, $method] = explode('@', $handler, 2);
+            return [$container->get($class), $method];
+        }
+        if (is_array($handler) && is_string($handler[0])) {
+            return [$container->get($handler[0]), $handler[1]];
+        }
+        if (is_callable($handler)) {
+            return $handler;
+        }
+        throw new InvalidArgumentException('Invalid route handler');
+    }
+
+    private function normalizeResponse(mixed $result): Response
+    {
+        if ($result instanceof Response) {
+            return $result;
+        }
+        if (is_array($result)) {
+            return Response::json($result);
+        }
+        if ($result === null) {
+            return Response::make();
+        }
+        return Response::make((string)$result);
     }
 }
