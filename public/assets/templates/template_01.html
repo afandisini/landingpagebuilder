@@ -473,7 +473,7 @@
                 input.dataset.lpbUploadInit = '1';
                 input.setAttribute('accept', 'image/*');
                 if (label) {
-                    const uid = 'lpb-upload-' + Math.random().toString(36).slice(2, 9);
+                    const uid = 'lpb-upload-' + (crypto.randomUUID ? crypto.randomUUID() : Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2,'0')).join(''));
                     input.id = uid;
                     label.setAttribute('for', uid);
                     const existingPreview = label.querySelector('img[data-upload-preview]');
