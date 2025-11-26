@@ -29,7 +29,20 @@ $productNameValue = $productConfig['name'] ?? '';
 $productPriceValue = $productConfig['price'] ?? '';
 $productNoteValue = $productConfig['note'] ?? '';
 $statusValue = $page['status'] ?? 'draft';
+$codeMirrorBase = htmlspecialchars(rtrim($baseUrl, '/') . '/assets/codemirror');
 ?>
+<link rel="stylesheet" href="<?php echo $codeMirrorBase; ?>/lib/codemirror.css">
+<link rel="stylesheet" href="<?php echo $codeMirrorBase; ?>/theme/material-darker.css">
+<style>
+    .CodeMirror {
+        min-height: 420px;
+        border: 1px solid #ced4da;
+        border-radius: 0.75rem;
+        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
+        font-size: 0.95rem;
+    }
+    .CodeMirror-scroll { min-height: 400px; }
+</style>
 <div class="mb-4">
     <h1 class="h3">Edit Landing Page</h1>
 </div>
@@ -74,10 +87,24 @@ $statusValue = $page['status'] ?? 'draft';
     </div>
 
     <div class="mb-3">
-        <label class="form-label">Design Canvas</label>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <label class="form-label d-flex align-items-center gap-2 mb-0">
+                Design Canvas
+                <span class="badge bg-primary">Edit ID #<?php echo htmlspecialchars($page['id']); ?></span>
+            </label>
+            <div class="btn-group rounded-3" role="group" aria-label="Canvas View Toggle" data-builder-only="true">
+                <button type="button" class="btn btn-secondary btn-sm" id="edit-html-btn">
+                    <i class="bi bi-code-slash w-50 me-1"></i>Edit Html
+                </button>
+                <button type="button" class="btn btn-warning btn-sm active" id="view-btn">
+                    <i class="bi bi-eye w-50 me-1"></i>Visual
+                </button>
+            </div>
+        </div>
         <div id="gjs" class="card border rounded-3 p-2" style="overflow: hidden; min-height: 400px; background-color: #fff;">
             <?php echo $page['html_content'] ?? '<section><h1>Edit your layout</h1></section>'; ?>
         </div>
+        <textarea id="html-raw-editor" class="form-control font-monospace d-none mt-2" rows="16" spellcheck="false" style="min-height: 400px;"></textarea>
     </div>
 
     <div class="mb-3">
@@ -169,54 +196,212 @@ $statusValue = $page['status'] ?? 'draft';
     <textarea name="html_content" id="html_content" hidden></textarea>
     <button type="submit" class="btn btn-primary">Update Page</button>
 </form>
-<link rel="stylesheet" href="<?php echo $baseUrl; ?>/assets/vendor/canvaseditor/grapes.min.css">
-<script src="<?php echo $baseUrl; ?>/assets/vendor/canvaseditor/grapes.min.js"></script>
+<script src="<?php echo $codeMirrorBase; ?>/lib/codemirror.js"></script>
+<script src="<?php echo $codeMirrorBase; ?>/mode/xml/xml.js"></script>
+<script src="<?php echo $codeMirrorBase; ?>/mode/javascript/javascript.js"></script>
+<script src="<?php echo $codeMirrorBase; ?>/mode/css/css.js"></script>
+<script src="<?php echo $codeMirrorBase; ?>/mode/htmlmixed/htmlmixed.js"></script>
+<script src="<?php echo $codeMirrorBase; ?>/addon/fold/xml-fold.js"></script>
+<script src="<?php echo $codeMirrorBase; ?>/addon/edit/closetag.js"></script>
+<script src="<?php echo $codeMirrorBase; ?>/addon/edit/closebrackets.js"></script>
+<script src="<?php echo $codeMirrorBase; ?>/addon/edit/matchbrackets.js"></script>
+<script src="<?php echo $codeMirrorBase; ?>/addon/edit/matchtags.js"></script>
+<script src="<?php echo $codeMirrorBase; ?>/addon/selection/active-line.js"></script>
 <script>
+(function () {
     const canvasEl = document.getElementById('gjs');
     const htmlField = document.getElementById('html_content');
+    const htmlRawEditor = document.getElementById('html-raw-editor');
     const formEl = document.getElementById('pageForm');
     const orderTypeSelect = document.getElementById('order_type');
     const linkPanel = document.getElementById('order-link-panel');
     const gatewayPanel = document.getElementById('order-gateway-panel');
+    const editHtmlBtn = document.getElementById('edit-html-btn');
+    const viewBtn = document.getElementById('view-btn');
+    let currentMode = 'visual';
+    let visualEditor = null;
+    let codeEditor = null;
 
-    let editor = null;
-    if (typeof canvaseditor !== 'undefined' && canvasEl) {
-        editor = canvaseditor.init({
-            container: '#gjs',
-            height: '70vh',
-            fromElement: true
-        });
-    } else if (canvasEl) {
-        canvasEl.setAttribute('contenteditable', 'true');
+    (function resolveVisualEditor() {
+        if (window.gjsEditor) {
+            visualEditor = window.gjsEditor;
+            return;
+        }
+        if (window.editor && typeof window.editor.getHtml === 'function') {
+            visualEditor = window.editor;
+            window.gjsEditor = visualEditor;
+            return;
+        }
+        if (typeof window.canvaseditor !== 'undefined' && canvasEl) {
+            visualEditor = window.canvaseditor.init({
+                container: '#gjs',
+                height: '90vh',
+                fromElement: true,
+                storageManager: false
+            });
+            window.gjsEditor = visualEditor;
+            return;
+        }
+        if (canvasEl) {
+            canvasEl.setAttribute('contenteditable', 'true');
+        }
+    })();
+
+    try {
+        if (visualEditor?.StorageManager) {
+            visualEditor.StorageManager.disable?.();
+            visualEditor.StorageManager.setAutosave?.(false);
+        }
+    } catch (e) {
+        console.warn('Storage manager disabled fallback', e);
     }
+
+    window.addEventListener('unhandledrejection', function (evt) {
+        const reason = evt.reason;
+        const msg = typeof reason === 'string' ? reason : (reason?.message || '');
+        if (msg && msg.toLowerCase().includes('storage is not allowed')) {
+            evt.preventDefault();
+            console.warn('Suppressed storage access error:', msg);
+        }
+    });
 
     if (orderTypeSelect) {
         orderTypeSelect.addEventListener('change', function () {
             const val = this.value;
-            linkPanel.classList.toggle('d-none', val !== 'link');
-            gatewayPanel.classList.toggle('d-none', val !== 'gateway');
+            linkPanel?.classList.toggle('d-none', val !== 'link');
+            gatewayPanel?.classList.toggle('d-none', val !== 'gateway');
         });
     }
 
+    function ensureCodeEditor() {
+        if (codeEditor || typeof CodeMirror === 'undefined' || !htmlRawEditor) {
+            return codeEditor;
+        }
+        codeEditor = CodeMirror.fromTextArea(htmlRawEditor, {
+            mode: 'htmlmixed',
+            theme: 'material-darker',
+            lineNumbers: true,
+            lineWrapping: true,
+            autoCloseTags: true,
+            autoCloseBrackets: true,
+            matchBrackets: true,
+            matchTags: { bothTags: true },
+            styleActiveLine: true,
+            viewportMargin: Infinity
+        });
+        codeEditor.setSize('100%', 520);
+        const wrapper = codeEditor.getWrapperElement();
+        wrapper.classList.add('mt-2', 'd-none');
+        return codeEditor;
+    }
+
+    function showCodeEditor() {
+        const cm = ensureCodeEditor();
+        if (!cm) {
+            htmlRawEditor?.classList.remove('d-none');
+            return null;
+        }
+        cm.getWrapperElement().classList.remove('d-none');
+        cm.refresh();
+        return cm;
+    }
+
+    function hideCodeEditor() {
+        if (codeEditor) {
+            codeEditor.getWrapperElement().classList.add('d-none');
+        }
+        htmlRawEditor?.classList.add('d-none');
+    }
+
+    function getVisualHtml() {
+        try {
+            if (visualEditor && typeof visualEditor.getHtml === 'function') {
+                return visualEditor.getHtml();
+            }
+        } catch (e) {
+            console.warn('getHtml failed, fallback to DOM', e);
+        }
+        try {
+            if (window.LPB && typeof window.LPB.serialize === 'function') {
+                return window.LPB.serialize();
+            }
+        } catch (e) {
+            console.warn('LPB serialize failed', e);
+        }
+        return canvasEl ? canvasEl.innerHTML : '';
+    }
+
+    function applyHtmlToCanvas(html) {
+        if (visualEditor && typeof visualEditor.setComponents === 'function') {
+            try { visualEditor.setComponents(html); return true; } catch (e) {}
+        }
+        if (window.LPB && typeof window.LPB.setHtml === 'function') {
+            try { window.LPB.setHtml(html); return true; } catch (e) {}
+        }
+        if (canvasEl) {
+            canvasEl.innerHTML = html;
+            return true;
+        }
+        return false;
+    }
+
+    function enterCodeMode() {
+        const cm = showCodeEditor();
+        const html = getVisualHtml();
+        if (cm) {
+            cm.setValue(html || '');
+            cm.focus();
+            setTimeout(() => cm.refresh(), 30);
+        } else if (htmlRawEditor) {
+            htmlRawEditor.value = html || '';
+        }
+        canvasEl?.classList.add('d-none');
+        editHtmlBtn?.classList.add('active');
+        viewBtn?.classList.remove('active');
+        currentMode = 'code';
+    }
+
+    function enterVisualMode(applyChanges = true) {
+        if (currentMode === 'code' && applyChanges) {
+            const html = codeEditor ? codeEditor.getValue() : (htmlRawEditor?.value || '');
+            applyHtmlToCanvas(html);
+        }
+        hideCodeEditor();
+        canvasEl?.classList.remove('d-none');
+        viewBtn?.classList.add('active');
+        editHtmlBtn?.classList.remove('active');
+        currentMode = 'visual';
+    }
+
+    editHtmlBtn?.addEventListener('click', () => enterCodeMode());
+    viewBtn?.addEventListener('click', () => enterVisualMode(true));
+
+    document.addEventListener('keydown', function (evt) {
+        if (currentMode !== 'code') return;
+        const isSave = (evt.ctrlKey || evt.metaKey) && evt.key.toLowerCase() === 's';
+        if (isSave) {
+            evt.preventDefault();
+            const html = codeEditor ? codeEditor.getValue() : (htmlRawEditor?.value || '');
+            applyHtmlToCanvas(html);
+            return;
+        }
+        if (evt.key === 'Escape') {
+            evt.preventDefault();
+            enterVisualMode(false);
+        }
+    });
+
     if (formEl) {
         formEl.addEventListener('submit', function () {
-            let handled = false;
-            if (window.LPB && typeof window.LPB.serialize === 'function') {
-                const serialized = window.LPB.serialize();
-                if (htmlField && serialized) {
-                    htmlField.value = serialized;
-                    handled = true;
-                }
+            if (!htmlField) return;
+            if (currentMode === 'code') {
+                htmlField.value = codeEditor ? codeEditor.getValue() : (htmlRawEditor?.value || '');
+                return;
             }
-            if (!handled) {
-                if (editor && htmlField) {
-                    htmlField.value = editor.getHtml();
-                } else if (canvasEl && htmlField) {
-                    htmlField.value = canvasEl.innerHTML;
-                }
-            }
+            htmlField.value = getVisualHtml();
         });
     }
+})();
 </script>
 <script>
   (function(){

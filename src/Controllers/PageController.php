@@ -79,6 +79,7 @@ class PageController
     {
         Auth::requireLogin();
         try {
+            $config = require __DIR__ . '/../config/config.php';
             if (!Csrf::validate($_POST['_csrf'] ?? null)) {
                 header('Location: ?r=admin/pages');
                 exit;
@@ -91,9 +92,8 @@ class PageController
             }
 
             $title = trim($_POST['title'] ?? '');
-            $slugInput = trim($_POST['slug'] ?? '');
-            $status = trim($_POST['status'] ?? 'draft');
-            $status = in_array($status, ['draft', 'published'], true) ? $status : 'draft';
+            $slugInput = trim($_POST['slug'] ?? '') ?: 'demo-lp-01';
+            $status = 'published';
             $htmlContent = $this->normalizeHtml($_POST['html_content'] ?? '');
             $linkValues = $this->sanitizeLinks([
                 'shopee_link' => $_POST['shopee_link'] ?? null,
@@ -154,7 +154,7 @@ class PageController
             $slugFinal = $this->ensureUniqueSlug($slugBase);
 
             $user = Auth::user();
-            Page::create(array_merge([
+            $pageId = Page::create(array_merge([
                 'user_id' => $user['id'],
                 'title' => $title,
                 'slug' => $slugFinal,
@@ -165,6 +165,35 @@ class PageController
                 'cta_label' => $ctaLabel,
                 'cta_url' => $ctaUrl,
                 'product_config' => $productConfig,
+            ], $linkValues));
+
+            $pagePayload = array_merge([
+                'id' => $pageId,
+                'title' => $title,
+                'slug' => $slugFinal,
+                'status' => $status,
+                'html_content' => $htmlContent,
+                'template_id' => $templateId,
+                'order_type' => $orderType,
+                'cta_label' => $ctaLabel,
+                'cta_url' => $ctaUrl,
+                'product_config' => $productConfig,
+            ], $linkValues);
+
+            $published = $this->generateStaticPage($pagePayload, $config, 'demo-lp-01');
+
+            Page::update($pageId, array_merge([
+                'title' => $title,
+                'slug' => $slugFinal,
+                'html_content' => $htmlContent,
+                'status' => 'published',
+                'template_id' => $templateId,
+                'order_type' => $orderType,
+                'cta_label' => $ctaLabel,
+                'cta_url' => $ctaUrl,
+                'product_config' => $productConfig,
+                'published_path' => $published['published_path'],
+                'published_at' => $published['published_at'],
             ], $linkValues));
 
             header('Location: ?r=admin/pages');
@@ -340,114 +369,11 @@ class PageController
             }
 
             $config = require __DIR__ . '/../config/config.php';
-            $slug = $page['slug'];
-            $publicPath = __DIR__ . '/../../public/page';
-            if (!is_dir($publicPath)) {
-                mkdir($publicPath, 0755, true);
-            }
-            $targetFile = $publicPath . '/' . $slug . '.html';
-            $trackingUrl = $config['base_url'] . '/tracker.php?page_id=' . $page['id'];
-            $bootstrapCss = $config['base_url'] . '/assets/bootstrap/css/bootstrap.min.css';
-            $bootstrapIcons = $config['base_url'] . '/assets/bootstrap-icons/bootstrap-icons.min.css';
-            $bootstrapBundle = $config['base_url'] . '/assets/bootstrap/js/bootstrap.bundle.min.js';
-            $html = $page['html_content'] ?? '';
-
-            // Build social links from page fields so published pages always render buttons.
-            $linkMap = [
-                'shopee_link' => ['label' => 'Shopee', 'icon' => 'bi-bag'],
-                'tokped_link' => ['label' => 'Tokopedia', 'icon' => 'bi-bag-check'],
-                'fb_link' => ['label' => 'Facebook', 'icon' => 'bi-facebook'],
-                'ig_link' => ['label' => 'Instagram', 'icon' => 'bi-instagram'],
-                'tiktok_link' => ['label' => 'TikTok', 'icon' => 'bi-tiktok'],
-                'x_link' => ['label' => 'X', 'icon' => 'bi-twitter'],
-                'whatsapp' => ['label' => 'WhatsApp', 'icon' => 'bi-whatsapp'],
-                'telegram' => ['label' => 'Telegram', 'icon' => 'bi-telegram'],
-                'corporate' => ['label' => 'Corporate', 'icon' => 'bi-briefcase'],
-                'publisher' => ['label' => 'Publisher', 'icon' => 'bi-link-45deg'],
-            ];
-            $socialButtons = [];
-            foreach ($linkMap as $field => $meta) {
-                $url = trim($page[$field] ?? '');
-                if ($url === '') {
-                    continue;
-                }
-                $label = $meta['label'];
-                $icon = $meta['icon'];
-                $socialButtons[] = '<a class="btn btn-outline-secondary btn-sm me-2 mb-2 social-btn social-' . htmlspecialchars($field) . '" href="' . htmlspecialchars($url) . '" target="_blank" rel="noopener noreferrer"><i class="bi ' . htmlspecialchars($icon) . ' me-1"></i>' . htmlspecialchars($label) . '</a>';
-            }
-            $socialHtml = '';
-            if (!empty($socialButtons)) {
-                $socialHtml = '<div class="social-links d-flex flex-wrap align-items-center gap-2 mt-3">' . implode('', $socialButtons) . '</div>';
-            }
-
-            // Replace placeholder with generated social buttons or append when missing.
-            if ($socialHtml !== '' && strpos($html, '<!--SOCIAL_LINKS-->') !== false) {
-                $html = str_replace('<!--SOCIAL_LINKS-->', $socialHtml, $html);
-            } elseif ($socialHtml !== '') {
-                $html .= "\n" . $socialHtml;
-            } elseif (strpos($html, '<!--SOCIAL_LINKS-->') !== false) {
-                // If no links, drop the entire section containing the placeholder so it won't render.
-                $pattern = '/<section[^>]*>[^<]*?<!--SOCIAL_LINKS-->.*?<\\/section>/is';
-                $removed = preg_replace($pattern, '', $html);
-                if ($removed !== null) {
-                    $html = $removed;
-                } else {
-                    // Fallback: just strip the placeholder comment.
-                    $html = str_replace('<!--SOCIAL_LINKS-->', '', $html);
-                }
-            }
-
-            $linkPayload = json_encode(array_filter([
-                'shopee_link' => $page['shopee_link'] ?? null,
-                'tokped_link' => $page['tokped_link'] ?? null,
-                'fb_link' => $page['fb_link'] ?? null,
-                'ig_link' => $page['ig_link'] ?? null,
-                'tiktok_link' => $page['tiktok_link'] ?? null,
-                'x_link' => $page['x_link'] ?? null,
-                'whatsapp' => $page['whatsapp'] ?? null,
-                'telegram' => $page['telegram'] ?? null,
-                'corporate' => $page['corporate'] ?? null,
-                'publisher' => $page['publisher'] ?? null,
-                'cta_label' => $page['cta_label'] ?? null,
-                'cta_url' => $page['cta_url'] ?? null,
-            ], static function ($val) {
-                return $val !== null && trim((string)$val) !== '';
-            }), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
-            if ($linkPayload === false) {
-                $linkPayload = '{}';
-            }
-            $finalHtml = '<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>' . htmlspecialchars($page['title']) . '</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="' . $bootstrapCss . '">
-    <link rel="stylesheet" href="' . $bootstrapIcons . '">
-</head>
-<body>
-<div class="container-fluid py-5">
-    ' . $html . '
-</div>
-<script>
-    (function() {
-        var img = new Image();
-        img.src = "' . $trackingUrl . '&ts=" + Date.now();
-    })();
-</script>
-<script>
-    window.landingPageLinks = ' . $linkPayload . ';
-    window.pageId = ' . (int)$page['id'] . ';
-</script>
-<script src="' . $bootstrapBundle . '"></script>
-</body>
-</html>';
-
-            file_put_contents($targetFile, $finalHtml);
+            $published = $this->generateStaticPage($page, $config);
 
             Page::update($id, [
                 'title' => $page['title'],
-                'slug' => $slug,
+                'slug' => $page['slug'],
                 'html_content' => $page['html_content'],
                 'status' => 'published',
                 'shopee_link' => $page['shopee_link'],
@@ -465,8 +391,8 @@ class PageController
                 'cta_label' => $page['cta_label'] ?? null,
                 'cta_url' => $page['cta_url'] ?? null,
                 'product_config' => $page['product_config'] ?? null,
-                'published_path' => 'page/' . $slug . '.html',
-                'published_at' => date('Y-m-d H:i:s'),
+                'published_path' => $published['published_path'],
+                'published_at' => $published['published_at'],
             ]);
 
             header('Location: ?r=admin/pages');
@@ -476,6 +402,151 @@ class PageController
             header('Location: ?r=admin/pages');
             exit;
         }
+    }
+
+    private function generateStaticPage(array $page, array $config, ?string $slugOverride = null): array
+    {
+        $rawSlug = $slugOverride ?: ($page['slug'] ?? 'page');
+        $slug = $this->slugify($rawSlug);
+
+        $publicPath = __DIR__ . '/../../public/page';
+        if (!is_dir($publicPath)) {
+            mkdir($publicPath, 0755, true);
+        }
+        $targetFile = $publicPath . '/' . $slug . '.html';
+        $trackingUrl = $config['base_url'] . '/tracker.php?page_id=' . $page['id'];
+        $favicon = $config['base_url'] . '/favicon.ico';
+        $bootstrapCss = $config['base_url'] . '/assets/bootstrap/css/bootstrap.min.css';
+        $bootstrapIcons = $config['base_url'] . '/assets/bootstrap-icons/bootstrap-icons.min.css';
+        $bootstrapBundle = $config['base_url'] . '/assets/bootstrap/js/bootstrap.bundle.min.js';
+        $html = $this->stripUploadUi($page['html_content'] ?? '');
+
+        $linkMap = [
+            'shopee_link' => ['label' => 'Shopee', 'icon' => 'bi-bag'],
+            'tokped_link' => ['label' => 'Tokopedia', 'icon' => 'bi-bag-check'],
+            'fb_link' => ['label' => 'Facebook', 'icon' => 'bi-facebook'],
+            'ig_link' => ['label' => 'Instagram', 'icon' => 'bi-instagram'],
+            'tiktok_link' => ['label' => 'TikTok', 'icon' => 'bi-tiktok'],
+            'x_link' => ['label' => 'X', 'icon' => 'bi-twitter'],
+            'whatsapp' => ['label' => 'WhatsApp', 'icon' => 'bi-whatsapp'],
+            'telegram' => ['label' => 'Telegram', 'icon' => 'bi-telegram'],
+            'corporate' => ['label' => 'Corporate', 'icon' => 'bi-briefcase'],
+            'publisher' => ['label' => 'Publisher', 'icon' => 'bi-link-45deg'],
+        ];
+        $socialButtons = [];
+        foreach ($linkMap as $field => $meta) {
+            $url = trim($page[$field] ?? '');
+            if ($url === '') {
+                continue;
+            }
+            $label = $meta['label'];
+            $icon = $meta['icon'];
+            $socialButtons[] = '<a class="btn btn-outline-secondary btn-sm me-2 mb-2 social-btn social-' . htmlspecialchars($field) . '" href="' . htmlspecialchars($url) . '" target="_blank" rel="noopener noreferrer"><i class="bi ' . htmlspecialchars($icon) . ' me-1"></i>' . htmlspecialchars($label) . '</a>';
+        }
+        $socialHtml = '';
+        if (!empty($socialButtons)) {
+            $socialHtml = '<div class="social-links d-flex flex-wrap align-items-center gap-2 mt-3">' . implode('', $socialButtons) . '</div>';
+        }
+
+        if ($socialHtml !== '' && strpos($html, '<!--SOCIAL_LINKS-->') !== false) {
+            $html = str_replace('<!--SOCIAL_LINKS-->', $socialHtml, $html);
+        } elseif ($socialHtml !== '') {
+            $html .= "\n" . $socialHtml;
+        } elseif (strpos($html, '<!--SOCIAL_LINKS-->') !== false) {
+            $pattern = '/<section[^>]*>[^<]*?<!--SOCIAL_LINKS-->.*?<\\/section>/is';
+            $removed = preg_replace($pattern, '', $html);
+            if ($removed !== null) {
+                $html = $removed;
+            } else {
+                $html = str_replace('<!--SOCIAL_LINKS-->', '', $html);
+            }
+        }
+
+        $ctaLabel = trim($page['cta_label'] ?? '');
+        $ctaUrl = trim($page['cta_url'] ?? '');
+        if ($ctaUrl !== '') {
+            $ctaLabel = $ctaLabel !== '' ? $ctaLabel : 'Pesan Sekarang';
+            $ctaMarkup = '<div class="cta-primary text-center my-3" data-cta="primary"><a class="btn btn-primary btn-lg px-4" href="' . htmlspecialchars($ctaUrl) . '" target="_blank" rel="noopener noreferrer">' . htmlspecialchars($ctaLabel) . '</a></div>';
+            $ctaInserted = false;
+
+            if (strpos($html, '<!--CTA_BUTTON-->') !== false) {
+                $html = str_replace('<!--CTA_BUTTON-->', $ctaMarkup, $html);
+                $ctaInserted = true;
+            }
+
+            if (!$ctaInserted && strpos($html, '<!--SOCIAL_LINKS-->') !== false) {
+                $html = str_replace('<!--SOCIAL_LINKS-->', $ctaMarkup . '<!--SOCIAL_LINKS-->', $html);
+                $ctaInserted = true;
+            }
+
+            if (!$ctaInserted && $socialHtml !== '' && strpos($html, $socialHtml) !== false) {
+                $pos = strpos($html, $socialHtml);
+                if ($pos !== false) {
+                    $html = substr($html, 0, $pos) . $ctaMarkup . $socialHtml . substr($html, $pos + strlen($socialHtml));
+                    $ctaInserted = true;
+                }
+            }
+
+            if (!$ctaInserted) {
+                $html = $ctaMarkup . $html;
+            }
+        }
+
+        $linkPayload = json_encode(array_filter([
+            'shopee_link' => $page['shopee_link'] ?? null,
+            'tokped_link' => $page['tokped_link'] ?? null,
+            'fb_link' => $page['fb_link'] ?? null,
+            'ig_link' => $page['ig_link'] ?? null,
+            'tiktok_link' => $page['tiktok_link'] ?? null,
+            'x_link' => $page['x_link'] ?? null,
+            'whatsapp' => $page['whatsapp'] ?? null,
+            'telegram' => $page['telegram'] ?? null,
+            'corporate' => $page['corporate'] ?? null,
+            'publisher' => $page['publisher'] ?? null,
+            'cta_label' => $page['cta_label'] ?? null,
+            'cta_url' => $page['cta_url'] ?? null,
+        ], static function ($val) {
+            return $val !== null && trim((string)$val) !== '';
+        }), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+        if ($linkPayload === false) {
+            $linkPayload = '{}';
+        }
+
+        $finalHtml = '<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>' . htmlspecialchars($page['title']) . '</title>
+    <link rel="icon" href="' . $favicon . '" type="image/x-icon">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="' . $bootstrapCss . '">
+    <link rel="stylesheet" href="' . $bootstrapIcons . '">
+</head>
+<body>
+<div class="container py-5">
+    ' . $html . '
+</div>
+<script>
+    (function() {
+        var img = new Image();
+        img.src = "' . $trackingUrl . '&ts=" + Date.now();
+    })();
+</script>
+<script>
+    window.landingPageLinks = ' . $linkPayload . ';
+    window.pageId = ' . (int)$page['id'] . ';
+</script>
+<script src="' . $bootstrapBundle . '"></script>
+</body>
+</html>';
+
+        file_put_contents($targetFile, $finalHtml);
+
+        return [
+            'slug' => $slug,
+            'published_path' => 'page/' . $slug . '.html',
+            'published_at' => date('Y-m-d H:i:s'),
+        ];
     }
 
     private function renderView(string $view, array $params = []): string
@@ -555,6 +626,9 @@ class PageController
 
     private function sanitizeHtml(string $html): string
     {
+        // strip stray XML declarations that sometimes get injected by DOMDocument
+        $html = preg_replace('/<\?xml[^>]*\?>/i', '', $html);
+        $html = preg_replace('/<!--\?xml[^>]*\?-->/i', '', $html);
         $html = preg_replace('#<div class="lpb-toolbar">.*?</div>#si', '', $html);
         $html = preg_replace('#<div class="lpb-handle">.*?</div>#si', '', $html);
         $html = preg_replace('/\sdraggable="[^"]*"/i', '', $html);
@@ -573,6 +647,10 @@ class PageController
         $dom->loadHTML('<?xml encoding="utf-8" ?>' . $html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
         libxml_clear_errors();
         $xpath = new \DOMXPath($dom);
+        // remove any script tags left by builder UI
+        foreach ($xpath->query('//script') as $scriptNode) {
+            $scriptNode->parentNode?->removeChild($scriptNode);
+        }
         $queries = [
             '//*[@data-layout-key]',
             '//*[@data-action="remove-layout"]',
@@ -590,7 +668,77 @@ class PageController
                 }
             }
         }
+        $this->stripUploadUiFromDom($dom);
         return $dom->saveHTML();
+    }
+
+    private function stripUploadUi(string $html): string
+    {
+        $dom = new \DOMDocument();
+        libxml_use_internal_errors(true);
+        $dom->loadHTML('<?xml encoding="utf-8" ?>' . $html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+        libxml_clear_errors();
+        $this->stripUploadUiFromDom($dom);
+        return $dom->saveHTML();
+    }
+
+    private function stripUploadUiFromDom(\DOMDocument $dom): void
+    {
+        $xpath = new \DOMXPath($dom);
+
+        $styleNodes = [];
+        foreach ($xpath->query('//style') as $style) {
+            $styleNodes[] = $style;
+        }
+        foreach ($styleNodes as $style) {
+            if ($style->parentNode) {
+                $style->parentNode->removeChild($style);
+            }
+        }
+
+        $uploadLabels = [];
+        foreach ($xpath->query('//*[contains(concat(" ", normalize-space(@class), " "), " custum-file-upload ")]') as $node) {
+            $uploadLabels[] = $node;
+        }
+        foreach ($uploadLabels as $label) {
+            $img = null;
+            foreach ($label->getElementsByTagName('img') as $candidate) {
+                $src = trim($candidate->getAttribute('src'));
+                if ($src !== '') {
+                    $img = $candidate;
+                    break;
+                }
+            }
+            if ($img) {
+                $replacement = $img->cloneNode(true);
+                $replacement->removeAttribute('data-upload-preview');
+                $replacement->removeAttribute('data-lpb-upload-init');
+                $existingClass = trim($replacement->getAttribute('class') ?? '');
+                $replacement->setAttribute('class', trim($existingClass . ' img-fluid rounded-3 w-100 h-100'));
+                if (!$replacement->getAttribute('alt')) {
+                    $replacement->setAttribute('alt', 'image');
+                }
+                $label->parentNode?->replaceChild($replacement, $label);
+                continue;
+            }
+            $text = trim($label->textContent ?? '');
+            if ($text === '') {
+                $text = 'Konten teks';
+            }
+            $placeholder = $dom->createElement('div', $text);
+            $placeholder->setAttribute('class', 'text-center text-muted py-4');
+            $label->parentNode?->replaceChild($placeholder, $label);
+        }
+
+        $fileInputs = [];
+        foreach ($xpath->query('//input[@type="file"]') as $input) {
+            $fileInputs[] = $input;
+        }
+        foreach ($fileInputs as $input) {
+            if ($input->parentNode) {
+                $input->parentNode->removeChild($input);
+            }
+        }
     }
 
     private function persistDataImages(string $html): string
@@ -602,7 +750,20 @@ class PageController
 
         $imgs = $dom->getElementsByTagName('img');
         $baseDir = __DIR__ . '/../../public/uploads/' . date('Y/m');
-        $baseUrl = '/uploads/' . date('Y/m');
+        $configBaseUrl = '';
+        $configFile = __DIR__ . '/../config/config.php';
+        if (is_file($configFile)) {
+            $cfg = require $configFile;
+            $configBaseUrl = rtrim((string)($cfg['base_url'] ?? ''), '/');
+        }
+
+        if ($configBaseUrl === '') {
+            $scriptDir = dirname($_SERVER['SCRIPT_NAME'] ?? '') ?: '';
+            $scriptDir = str_replace('\\', '/', $scriptDir);
+            $configBaseUrl = rtrim($scriptDir === '/' ? '' : $scriptDir, '/');
+        }
+
+        $baseUrl = ($configBaseUrl === '' ? '' : $configBaseUrl) . '/uploads/' . date('Y/m');
 
         if (!is_dir($baseDir)) {
             mkdir($baseDir, 0775, true);

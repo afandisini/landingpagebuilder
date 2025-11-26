@@ -68,55 +68,63 @@
     <a href="?r=admin/pages/create" class="btn btn-sm btn-primary"><i class="bi bi-file-earmark me-1"></i> Buat Halaman</a>
 </div>
 
-<div class="table-responsive-sm"><!-- scroll hanya untuk <576px -->
+<div class="table-responsive-sm">
   <table class="table table-striped table-sm align-middle">
     <thead>
       <tr>
         <th class="text-nowrap">#</th>
         <th>Title</th>
-        <th class="d-none d-md-table-cell">Slug</th>          <!-- sembunyi di < md -->
+        <th class="d-none d-md-table-cell">Viewer</th>
+        <th class="d-none d-md-table-cell">Slug</th>        
         <th class="text-nowrap">Status</th>
-        <th class="d-none d-sm-table-cell">Published URL</th> <!-- sembunyi di < sm -->
+        <th class="d-none d-sm-table-cell">Published URL</th> 
       </tr>
     </thead>
     <tbody>
-    <?php foreach ($pages as $page): ?>
-      <tr>
-        <td class="text-muted"><?= (int)$page['id']; ?></td>
-
-        <td class="truncate" title="<?= htmlspecialchars($page['title']); ?>">
-          <?= htmlspecialchars($page['title']); ?>
-        </td>
-
-        <td class="d-none d-md-table-cell truncate" title="<?= htmlspecialchars($page['slug']); ?>">
-          <?= htmlspecialchars($page['slug']); ?>
-        </td>
-
-        <td>
-          <?php 
-            $status  = $page['status'] ?? '';
-            $cls = ($status === 'published') ? 'badge text-bg-success' : 'badge text-bg-warning';
-          ?>
-          <span class="<?= $cls; ?>"><?= htmlspecialchars($status); ?></span>
-        </td>
-
-        <td class="d-none d-sm-table-cell">
-          <div class="btn-group btn-group-sm">
-            <span class="btn btn-secondary disabled">
-              <i class="bi bi-eye me-1"></i><?= shortNumber($pageViewCounts[$page['id']] ?? 0); ?>
-            </span>
-            <?php if (!empty($page['published_path'])): ?>
-              <a class="btn btn-success" 
-                 href="<?= $baseUrl . '/' . ltrim($page['published_path'], '/'); ?>" target="_blank">
-                <i class="bi bi-box-arrow-up-right me-1"></i>Lihat
-              </a>
-            <?php else: ?>
-              <span class="btn btn-secondary disabled">-</span>
-            <?php endif; ?>
-          </div>
-        </td>
-      </tr>
-    <?php endforeach; ?>
+      <?php $no = 1; ?>
+      <?php foreach ($pages as $page): ?>
+          <tr>
+              <td><?= $no++;?></td>
+              <td>
+                <span class="text-capitalize fw-bold"><?= htmlspecialchars($page['title']); ?></span>
+              </td>
+              <td>
+                <i class="bi bi-eye me-1"></i><?= shortNumber($pageViewCounts[$page['id']] ?? 0); ?>
+              </td>
+              <td><?= htmlspecialchars($page['slug']); ?></td>
+              <td>
+                  <?php 
+                      $status  = $page['status'] ?? '';
+                      $cls = ($status === 'published') ? 'badge text-bg-success' : 'badge text-bg-warning';
+                  ?>
+                  <span class="<?= $cls; ?>"><?= htmlspecialchars($status); ?></span>
+              </td>
+              <td>
+                  <?php
+                      $isPublished = ($status === 'published');
+                      $hasPath = !empty($page['published_path']);
+                  ?>
+                  <?php if ($isPublished && $hasPath): ?>
+                      <a class="btn btn-primary btn-sm"
+                        href="<?= $baseUrl . '/' . ltrim($page['published_path'], '/'); ?>"
+                        target="_blank" title="ID: <?= (int)$page['id']; ?>">
+                        <i class="bi bi-box-arrow-up-right"></i> Lihat
+                      </a>
+                  <?php elseif ($isPublished && !$hasPath): ?>
+                      <a class="btn btn-secondary btn-sm disabled" role="button" aria-disabled="true" tabindex="-1"
+                        title="ID: <?= (int)$page['id']; ?>">
+                        <i class="bi bi-exclamation-triangle"></i> Path kosong
+                      </a>
+                  <?php else: ?>
+                      <a class="btn btn-secondary btn-sm disabled" role="button" aria-disabled="true" tabindex="-1"
+                        title="ID: <?= (int)$page['id']; ?>">
+                        <i class="bi bi-ban"></i> Belum Dipublikasikan
+                      </a>
+                  <?php endif; ?>
+              </td>
+          </tr>
+      <?php endforeach; ?>
     </tbody>
+
   </table>
 </div>

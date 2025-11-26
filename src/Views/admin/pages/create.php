@@ -2,8 +2,27 @@
 // --- bootstrap minimal ---
 date_default_timezone_set('Asia/Jakarta');
 
-// TODO: adjust DSN/cred to your env
-$pdo = new PDO('mysql:host=127.0.0.1;dbname=landingpagebuilder;charset=utf8mb4', 'root', '', [
+function logErrorMessage($message)
+{
+    $logDir = dirname(__DIR__, 4) . '/log';
+    if (!is_dir($logDir)) {
+        mkdir($logDir, 0775, true);
+    }
+    $file = $logDir . '/log_error.txt';
+    $line = date('Y-m-d H:i:s') . ' [' . ($_SERVER['REQUEST_URI'] ?? 'cli') . '] ' . $message . PHP_EOL;
+    file_put_contents($file, $line, FILE_APPEND);
+}
+
+$configPath = dirname(__DIR__, 3) . '/config/config.php';
+$config = is_file($configPath) ? require $configPath : [];
+$dbConfig = $config['db'] ?? [];
+$dbHost = getenv('DB_HOST') ?: ($dbConfig['host'] ?? '127.0.0.1');
+$dbName = getenv('DB_NAME') ?: ($dbConfig['name'] ?? 'landingpagebuilder');
+$dbUser = getenv('DB_USER') ?: ($dbConfig['user'] ?? 'root');
+$dbPass = getenv('DB_PASS') ?: ($dbConfig['pass'] ?? '');
+$dbCharset = getenv('DB_CHARSET') ?: ($dbConfig['charset'] ?? 'utf8mb4');
+$dsn = sprintf('mysql:host=%s;dbname=%s;charset=%s', $dbHost, $dbName, $dbCharset);
+$pdo = new PDO($dsn, $dbUser, $dbPass, [
     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
 ]);
@@ -30,6 +49,75 @@ function ensureUniqueSlug(PDO $pdo, $base, $excludeId = null)
             return $slug;
         }
         $slug = $base . '-' . $i++;
+    }
+}
+
+function stripUploadUi($html)
+{
+    $dom = new DOMDocument();
+    libxml_use_internal_errors(true);
+    $dom->loadHTML('<?xml encoding="utf-8" ?>' . $html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+    libxml_clear_errors();
+    stripUploadUiFromDom($dom);
+    return $dom->saveHTML();
+}
+
+function stripUploadUiFromDom(DOMDocument $dom): void
+{
+    $xpath = new DOMXPath($dom);
+
+    $styles = [];
+    foreach ($xpath->query('//style') as $style) {
+        $styles[] = $style;
+    }
+    foreach ($styles as $style) {
+        if ($style->parentNode) {
+            $style->parentNode->removeChild($style);
+        }
+    }
+
+    $uploads = [];
+    foreach ($xpath->query('//*[contains(concat(" ", normalize-space(@class), " "), " custum-file-upload ")]') as $node) {
+        $uploads[] = $node;
+    }
+    foreach ($uploads as $label) {
+        $img = null;
+        foreach ($label->getElementsByTagName('img') as $candidate) {
+            $src = trim($candidate->getAttribute('src'));
+            if ($src !== '') {
+                $img = $candidate;
+                break;
+            }
+        }
+        if ($img) {
+            $replacement = $img->cloneNode(true);
+            $replacement->removeAttribute('data-upload-preview');
+            $replacement->removeAttribute('data-lpb-upload-init');
+            $existingClass = trim($replacement->getAttribute('class') ?? '');
+            $replacement->setAttribute('class', trim($existingClass . ' img-fluid rounded-3 w-100 h-100'));
+            if (!$replacement->getAttribute('alt')) {
+                $replacement->setAttribute('alt', 'image');
+            }
+            $label->parentNode?->replaceChild($replacement, $label);
+            continue;
+        }
+        $text = trim($label->textContent ?? '');
+        if ($text === '') {
+            $text = 'Konten teks';
+        }
+        $placeholder = $dom->createElement('div', $text);
+        $placeholder->setAttribute('class', 'text-center text-muted py-4');
+        $label->parentNode?->replaceChild($placeholder, $label);
+    }
+
+    $fileInputs = [];
+    foreach ($xpath->query('//input[@type="file"]') as $input) {
+        $fileInputs[] = $input;
+    }
+    foreach ($fileInputs as $input) {
+        if ($input->parentNode) {
+            $input->parentNode->removeChild($input);
+        }
     }
 }
 
@@ -71,6 +159,7 @@ function sanitizeHtml($html)
             }
         }
     }
+    stripUploadUiFromDom($dom);
     return $dom->saveHTML();
 }
 
@@ -83,7 +172,18 @@ function persistDataImages($html)
 
     $imgs = $dom->getElementsByTagName('img');
     $baseDir = dirname(__DIR__, 4) . '/public/uploads/' . date('Y/m');
-    $baseUrl = '/uploads/' . date('Y/m');
+    $configBaseUrl = '';
+    $configFile = dirname(__DIR__, 3) . '/config/config.php';
+    if (is_file($configFile)) {
+        $cfg = require $configFile;
+        $configBaseUrl = rtrim((string)($cfg['base_url'] ?? ''), '/');
+    }
+    if ($configBaseUrl === '') {
+        $scriptDir = dirname($_SERVER['SCRIPT_NAME'] ?? '') ?: '';
+        $scriptDir = str_replace('\\', '/', $scriptDir);
+        $configBaseUrl = rtrim($scriptDir === '/' ? '' : $scriptDir, '/');
+    }
+    $baseUrl = ($configBaseUrl === '' ? '' : $configBaseUrl) . '/uploads/' . date('Y/m');
 
     if (!is_dir($baseDir)) {
         mkdir($baseDir, 0775, true);
@@ -127,8 +227,8 @@ function savePage(PDO $pdo, $input)
 {
     $id = isset($input['id']) ? (int)$input['id'] : null;
     $title = trim($input['title'] ?? '');
-    $slug = trim($input['slug'] ?? '');
-    $status = trim($input['status'] ?? 'draft');
+    $slug = trim($input['slug'] ?? 'demo-lp-01');
+    $status = trim($input['status'] ?? 'published');
     $html = $input['html_content'] ?? '';
 
     if (!$title) {
@@ -137,7 +237,7 @@ function savePage(PDO $pdo, $input)
 
     $allowedStatus = ['draft', 'published'];
     if (!in_array($status, $allowedStatus, true)) {
-        $status = 'draft';
+        $status = 'published';
     }
 
     $existingId = null;
@@ -211,7 +311,8 @@ $ctaUrlValue = $old['cta_url'] ?? '';
 $productNameValue = $old['product_name'] ?? '';
 $productPriceValue = $old['product_price'] ?? '';
 $productNoteValue = $old['product_note'] ?? '';
-$statusValue = $old['status'] ?? 'draft';
+$statusValue = $old['status'] ?? 'published';
+$slugValue = $old['slug'] ?? 'demo-lp-01';
 ?>
 <div class="mb-4">
     <h1 class="h3">Create Landing Page</h1>
@@ -244,13 +345,12 @@ $statusValue = $old['status'] ?? 'draft';
         </div>
         <div class="col-md-4">
             <label class="form-label" for="slug">Slug (optional)</label>
-            <input class="form-control" type="text" name="slug" id="slug" value="<?php echo htmlspecialchars($old['slug'] ?? ''); ?>" placeholder="auto-fill from title if empty">
+            <input class="form-control" type="text" name="slug" id="slug" value="<?php echo htmlspecialchars($slugValue); ?>" placeholder="auto-fill from title if empty">
         </div>
         <div class="col-md-2">
             <label class="form-label" for="status">Status</label>
             <select class="form-select" name="status" id="status">
-                <option value="draft" <?php echo $statusValue === 'draft' ? 'selected' : ''; ?>>Draft</option>
-                <!-- <option value="published" <?php echo $statusValue === 'published' ? 'selected' : ''; ?>>Published</option> -->
+                <option value="published" selected>Published</option>
             </select>
         </div>
     </div>

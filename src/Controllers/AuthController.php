@@ -28,7 +28,7 @@ class AuthController
 
         $user = User::findByEmail($email);
         if (!$user || !password_verify($password, $user['password'])) {
-            $this->loginForm('Invalid credentials.');
+            $this->loginForm('Akses Gagal. ID atau Katasandi salah.');
             return;
         }
 
