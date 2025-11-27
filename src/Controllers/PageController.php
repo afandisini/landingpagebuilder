@@ -75,142 +75,206 @@ class PageController
         require __DIR__ . '/../Views/layouts/admin.php';
     }
 
-    public function store(): void
-    {
-        Auth::requireLogin();
-        try {
-            $config = require __DIR__ . '/../config/config.php';
-            if (!Csrf::validate($_POST['_csrf'] ?? null)) {
-                header('Location: ?r=admin/pages');
-                exit;
-            }
-            $templateId = (int)($_POST['template_id'] ?? 0);
-            $template = Template::find($templateId);
-            if ($templateId <= 0 || !$template) {
-                header('Location: ?r=admin/pages/template');
-                exit;
-            }
+    // Tambahkan method helper ini di kelas Controller yang sama
+private function ensureUniquePublishedSlug(string $base, array $config): string
+{
+    // Direktori output static page; fallback ke public/page
+    $dir = rtrim($config['publish_dir'] ?? (dirname(__DIR__, 2) . '/public/page'), '/');
 
-            $title = trim($_POST['title'] ?? '');
-            $slugInput = trim($_POST['slug'] ?? '') ?: 'demo-lp-01';
-            $status = 'published';
-            $htmlContent = $this->normalizeHtml($_POST['html_content'] ?? '');
-            $linkValues = $this->sanitizeLinks([
-                'shopee_link' => $_POST['shopee_link'] ?? null,
-                'tokped_link' => $_POST['tokped_link'] ?? null,
-                'fb_link' => $_POST['fb_link'] ?? null,
-                'ig_link' => $_POST['ig_link'] ?? null,
-                'tiktok_link' => $_POST['tiktok_link'] ?? null,
-                'x_link' => $_POST['x_link'] ?? null,
-                'corporate' => $_POST['corporate'] ?? null,
-                'publisher' => $_POST['publisher'] ?? null,
-                'whatsapp' => $_POST['whatsapp'] ?? null,
-                'telegram' => $_POST['telegram'] ?? null,
-            ]);
-            $orderType = $_POST['order_type'] ?? ($template['order_type'] ?? 'none');
-            $allowedOrderTypes = ['none', 'link', 'gateway'];
-            if (!in_array($orderType, $allowedOrderTypes, true)) {
-                $orderType = 'none';
-            }
-            $ctaLabel = trim($_POST['cta_label'] ?? '');
-            $ctaUrl = trim($_POST['cta_url'] ?? '');
-            $productName = trim($_POST['product_name'] ?? '');
-            $productPrice = trim($_POST['product_price'] ?? '');
-            $productNote = trim($_POST['product_note'] ?? '');
-            $productConfig = null;
-            if ($orderType === 'gateway') {
-                $configPayload = [
-                    'name' => $productName,
-                    'price' => $productPrice,
-                    'note' => $productNote,
-                ];
-                $encodedConfig = json_encode($configPayload, JSON_UNESCAPED_UNICODE);
-                $productConfig = $encodedConfig === false ? null : $encodedConfig;
-            }
-            $oldInput = array_merge(
-                ['title' => $title, 'slug' => $slugInput],
-                array_map(static function ($val) {
-                    return $val ?? '';
-                }, $linkValues),
-                [
-                    'cta_label' => $ctaLabel,
-                    'cta_url' => $ctaUrl,
-                    'product_name' => $productName,
-                    'product_price' => $productPrice,
-                    'product_note' => $productNote,
-                ]
-            );
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0775, true);
+    }
 
-            if ($title === '') {
-                $this->create([
-                    'error' => 'Title is required.',
-                    'template_id' => $templateId,
-                    'old' => $oldInput,
-                ]);
-                return;
-            }
+    // Kandidat awal: base.html (mis. landing-page-271125.html)
+    $candidate = $base;
+    $path = "$dir/$candidate.html";
 
-            $slugBase = $this->slugify($slugInput ?: $title);
-            $slugFinal = $this->ensureUniqueSlug($slugBase);
+    if (!file_exists($path)) {
+        return $candidate;
+    }
 
-            $user = Auth::user();
-            $pageId = Page::create(array_merge([
-                'user_id' => $user['id'],
-                'title' => $title,
-                'slug' => $slugFinal,
-                'status' => $status,
-                'html_content' => $htmlContent,
-                'template_id' => $templateId,
-                'order_type' => $orderType,
-                'cta_label' => $ctaLabel,
-                'cta_url' => $ctaUrl,
-                'product_config' => $productConfig,
-            ], $linkValues));
+    // Kalau tabrakan → tambahkan jam-menit-detik
+    $stamp = date('His'); // contoh: 162314
+    $candidate = "{$base}-{$stamp}";
+    $path = "$dir/$candidate.html";
+    if (!file_exists($path)) {
+        return $candidate;
+    }
 
-            $pagePayload = array_merge([
-                'id' => $pageId,
-                'title' => $title,
-                'slug' => $slugFinal,
-                'status' => $status,
-                'html_content' => $htmlContent,
-                'template_id' => $templateId,
-                'order_type' => $orderType,
-                'cta_label' => $ctaLabel,
-                'cta_url' => $ctaUrl,
-                'product_config' => $productConfig,
-            ], $linkValues);
-
-            $published = $this->generateStaticPage($pagePayload, $config, 'demo-lp-01');
-
-            Page::update($pageId, array_merge([
-                'title' => $title,
-                'slug' => $slugFinal,
-                'html_content' => $htmlContent,
-                'status' => 'published',
-                'template_id' => $templateId,
-                'order_type' => $orderType,
-                'cta_label' => $ctaLabel,
-                'cta_url' => $ctaUrl,
-                'product_config' => $productConfig,
-                'published_path' => $published['published_path'],
-                'published_at' => $published['published_at'],
-            ], $linkValues));
-
-            header('Location: ?r=admin/pages');
-            exit;
-        } catch (\Throwable $e) {
-            $this->logError('store: ' . $e->getMessage());
-            $fallbackOld = [
-                'title' => $_POST['title'] ?? '',
-                'slug' => $_POST['slug'] ?? '',
-            ];
-            $this->create([
-                'error' => 'Gagal menyimpan halaman: ' . $e->getMessage(),
-                'template_id' => (int)($_POST['template_id'] ?? 0),
-                'old' => $fallbackOld,
-            ]);
+    // Kalau masih tabrakan (race) → tambah counter 1..50
+    for ($i = 1; $i <= 50; $i++) {
+        $try = "{$base}-{$stamp}-{$i}";
+        if (!file_exists("$dir/$try.html")) {
+            return $try;
         }
     }
+
+    // Tameng terakhir → suffix unik
+    return "{$base}-" . substr(uniqid('', true), -6);
+}
+
+    // Ganti method store() kamu dengan versi lengkap ini
+public function store(): void
+{
+    Auth::requireLogin();
+
+    try {
+        $config = require __DIR__ . '/../config/config.php';
+
+        if (!Csrf::validate($_POST['_csrf'] ?? null)) {
+            header('Location: ?r=admin/pages');
+            exit;
+        }
+
+        $templateId = (int)($_POST['template_id'] ?? 0);
+        $template   = Template::find($templateId);
+        if ($templateId <= 0 || !$template) {
+            header('Location: ?r=admin/pages/template');
+            exit;
+        }
+
+        $title = trim($_POST['title'] ?? '');
+        $dt    = date('dmy');
+
+        // Default slug input jika kosong → landing-page-ddmmyy
+        $slugInput = trim($_POST['slug'] ?? '') ?: "landing-page-$dt";
+
+        $status      = 'published';
+        $htmlContent = $this->normalizeHtml($_POST['html_content'] ?? '');
+
+        $linkValues = $this->sanitizeLinks([
+            'shopee_link'  => $_POST['shopee_link']  ?? null,
+            'tokped_link'  => $_POST['tokped_link']  ?? null,
+            'fb_link'      => $_POST['fb_link']      ?? null,
+            'ig_link'      => $_POST['ig_link']      ?? null,
+            'tiktok_link'  => $_POST['tiktok_link']  ?? null,
+            'x_link'       => $_POST['x_link']       ?? null,
+            'corporate'    => $_POST['corporate']    ?? null,
+            'publisher'    => $_POST['publisher']    ?? null,
+            'whatsapp'     => $_POST['whatsapp']     ?? null,
+            'telegram'     => $_POST['telegram']     ?? null,
+        ]);
+
+        $orderType          = $_POST['order_type'] ?? ($template['order_type'] ?? 'none');
+        $allowedOrderTypes  = ['none', 'link', 'gateway'];
+        if (!in_array($orderType, $allowedOrderTypes, true)) {
+            $orderType = 'none';
+        }
+
+        $ctaLabel     = trim($_POST['cta_label'] ?? '');
+        $ctaUrl       = trim($_POST['cta_url'] ?? '');
+        $productName  = trim($_POST['product_name'] ?? '');
+        $productPrice = trim($_POST['product_price'] ?? '');
+        $productNote  = trim($_POST['product_note'] ?? '');
+        $productConfig = null;
+
+        if ($orderType === 'gateway') {
+            $configPayload  = [
+                'name'  => $productName,
+                'price' => $productPrice,
+                'note'  => $productNote,
+            ];
+            $encodedConfig  = json_encode($configPayload, JSON_UNESCAPED_UNICODE);
+            $productConfig  = $encodedConfig === false ? null : $encodedConfig;
+        }
+
+        $oldInput = array_merge(
+            ['title' => $title, 'slug' => $slugInput],
+            array_map(static fn($val) => $val ?? '', $linkValues),
+            [
+                'cta_label'     => $ctaLabel,
+                'cta_url'       => $ctaUrl,
+                'product_name'  => $productName,
+                'product_price' => $productPrice,
+                'product_note'  => $productNote,
+            ]
+        );
+
+        if ($title === '') {
+            $this->create([
+                'error'       => 'Title is required.',
+                'template_id' => $templateId,
+                'old'         => $oldInput,
+            ]);
+            return;
+        }
+
+        // Slug untuk DB → aman & unik di tabel pages
+        $slugBase  = $this->slugify($slugInput ?: $title);
+        $slugFinal = $this->ensureUniqueSlug($slugBase);
+
+        $user   = Auth::user();
+        $pageId = Page::create(array_merge([
+            'user_id'       => $user['id'],
+            'title'         => $title,
+            'slug'          => $slugFinal,
+            'status'        => $status,
+            'html_content'  => $htmlContent,
+            'template_id'   => $templateId,
+            'order_type'    => $orderType,
+            'cta_label'     => $ctaLabel,
+            'cta_url'       => $ctaUrl,
+            'product_config'=> $productConfig,
+        ], $linkValues));
+
+        $pagePayload = array_merge([
+            'id'            => $pageId,
+            'title'         => $title,
+            'slug'          => $slugFinal,
+            'status'        => $status,
+            'html_content'  => $htmlContent,
+            'template_id'   => $templateId,
+            'order_type'    => $orderType,
+            'cta_label'     => $ctaLabel,
+            'cta_url'       => $ctaUrl,
+            'product_config'=> $productConfig,
+        ], $linkValues);
+
+        // === BEGIN: Penamaan file publish yang anti-tabrakan ===
+        // Base: landing-page-ddmmyy
+        $publishBase = 'landing-page-' . date('dmy');
+
+        // Pastikan nama file HTML publish unik di disk
+        $slugPublish = $this->ensureUniquePublishedSlug($publishBase, $config);
+        // === END ===
+
+        // Generate file statis (mis. public/page/{slugPublish}.html)
+        $published = $this->generateStaticPage($pagePayload, $config, $slugPublish);
+
+        // Simpan kembali informasi publish ke DB
+        Page::update($pageId, array_merge([
+            'title'          => $title,
+            'slug'           => $slugFinal,
+            'html_content'   => $htmlContent,
+            'status'         => 'published',
+            'template_id'    => $templateId,
+            'order_type'     => $orderType,
+            'cta_label'      => $ctaLabel,
+            'cta_url'        => $ctaUrl,
+            'product_config' => $productConfig,
+            'published_path' => $published['published_path'],
+            'published_at'   => $published['published_at'],
+        ], $linkValues));
+
+        header('Location: ?r=admin/pages');
+        exit;
+
+    } catch (\Throwable $e) {
+        $this->logError('store: ' . $e->getMessage());
+
+        $fallbackOld = [
+            'title' => $_POST['title'] ?? '',
+            'slug'  => $_POST['slug']  ?? '',
+        ];
+
+        $this->create([
+            'error'       => 'Gagal menyimpan halaman: ' . $e->getMessage(),
+            'template_id' => (int)($_POST['template_id'] ?? 0),
+            'old'         => $fallbackOld,
+        ]);
+    }
+}
+
 
     public function edit(): void
     {
